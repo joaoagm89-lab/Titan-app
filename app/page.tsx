@@ -1,10 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid,
 } from "recharts";
+import {
+  Activity, Brain, Wallet, Compass, Target, BarChart3,
+  Sun, Moon, ChevronLeft, ChevronRight, Pencil, Cigarette, CigaretteOff,
+  Dumbbell, Droplets, Scale, UtensilsCrossed, TrendingUp, Briefcase,
+  BookOpen, Heart, Users, Flame, Timer, Zap, PiggyBank, Award,
+} from "lucide-react";
 
 const TIPOS_ATIVIDADE = [
   "Musculação", "Corrida", "Caminhada", "Ciclismo", "Natação", "Yoga",
@@ -21,7 +27,7 @@ const MET_POR_ATIVIDADE = {
   "Boxe": 9.0, "Dança": 4.8, "Alongamento": 2.3, "Escalada": 8.0, "Outro": 5.0,
 };
 
-const CORES_GRAFICO = ["#534AB7", "#0F6E56", "#993C1D", "#993556", "#5F5E5A", "#185FA5", "#3B6D11", "#854F0B"];
+const CORES_GRAFICO = ["#6366f1", "#0d9488", "#e11d48", "#d97706", "#64748b", "#0284c7", "#65a30d", "#7c3aed"];
 
 const NIVEIS = [
   { nivel: 1, nome: "Iniciante", xpNecessario: 0 },
@@ -35,6 +41,16 @@ const XP_NAO_FUMAR = 40;
 const XP_ATIVIDADE = 30;
 const XP_SONO_META = 15;
 
+const NIVEL_TRABALHO = ["Improdutivo", "Pouco produtivo", "Neutro", "Produtivo", "Muito produtivo"];
+const NIVEL_DISPOSICAO = ["Muito indisposto", "Indisposto", "Neutro", "Disposto", "Muito disposto"];
+const CARINHAS_HUMOR = [
+  { emoji: "😢", valor: 10 },
+  { emoji: "😕", valor: 35 },
+  { emoji: "😐", valor: 55 },
+  { emoji: "🙂", valor: 80 },
+  { emoji: "😄", valor: 100 },
+];
+
 const REGISTRO_PADRAO = {
   fumei: null,
   atividadeFisica: { feita: false, tipo: "", minutos: "" },
@@ -42,14 +58,18 @@ const REGISTRO_PADRAO = {
   gastos: [],
   investimentos: [],
   humorPercent: 70,
+  humorEmoji: "",
   notaHumor: "",
   peso: "",
   aguaCopos: 0,
   refeicoes: [],
-  saudeFisicaPercent: 70,
-  trabalho: { aprendeu: false, leu: false, produtivo: false },
+  saudeFisicaPercent: 50,
+  trabalhoClassificacao: 2,
   notaAprendizado: "",
+  leituraLivro: "",
+  leituraPaginas: "",
   notaRelacionamento: "",
+  notaFamilia: "",
 };
 
 const METAS_PADRAO = {
@@ -57,6 +77,9 @@ const METAS_PADRAO = {
   investimentoMensal: "",
   horaDormirMeta: "22:00",
   pesoMeta: "",
+  metaPessoal: "",
+  atividadeFisicaMetaMes: "",
+  aguaMetaLitros: "",
 };
 
 function hojeISO() { return new Date().toISOString().slice(0, 10); }
@@ -113,14 +136,129 @@ function calcularMelhorStreak(dadosPorDia) {
   return melhor;
 }
 
+// ===== TEMA =====
+const TemaContext = createContext({ escuro: false, alternar: () => {} });
+function useTema() { return useContext(TemaContext); }
+
+function BotaoTema() {
+  const { escuro, alternar } = useTema();
+  return (
+    <button onClick={alternar} className={`w-9 h-9 rounded-lg flex items-center justify-center transition active:opacity-70 ${escuro ? "bg-slate-900 border border-slate-800 text-slate-400" : "bg-white border border-slate-200 text-slate-500"}`}>
+      {escuro ? <Sun size={16} /> : <Moon size={16} />}
+    </button>
+  );
+}
+
+function Cartao({ children, className = "" }) {
+  const { escuro } = useTema();
+  return (
+    <div className={`rounded-xl border p-4 ${escuro ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"} ${className}`}>
+      {children}
+    </div>
+  );
+}
+function Titulo({ children }) {
+  const { escuro } = useTema();
+  return <h1 className={`text-2xl font-semibold tracking-tight ${escuro ? "text-white" : "text-slate-900"}`}>{children}</h1>;
+}
+function TituloSecao({ Icone, children }) {
+  const { escuro } = useTema();
+  return (
+    <h2 className={`font-semibold mb-3 flex items-center gap-2 text-[15px] uppercase tracking-wide text-xs ${escuro ? "text-slate-400" : "text-slate-500"}`}>
+      <Icone size={14} strokeWidth={2} />
+      {children}
+    </h2>
+  );
+}
+function Rotulo({ children, className = "" }) {
+  const { escuro } = useTema();
+  return <p className={`text-sm font-medium ${escuro ? "text-slate-200" : "text-slate-700"} ${className}`}>{children}</p>;
+}
+function Sutil({ children, className = "" }) {
+  const { escuro } = useTema();
+  return <span className={`${escuro ? "text-slate-500" : "text-slate-400"} ${className}`}>{children}</span>;
+}
+function Campo(props) {
+  const { escuro } = useTema();
+  const { className = "", ...rest } = props;
+  return (
+    <input
+      {...rest}
+      className={`w-full rounded-lg px-3 py-2.5 text-sm border outline-none focus:ring-1 focus:ring-indigo-500 ${
+        escuro ? "bg-slate-800 border-slate-700 text-white placeholder-slate-500" : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"
+      } ${className}`}
+    />
+  );
+}
+function CampoArea(props) {
+  const { escuro } = useTema();
+  const { className = "", ...rest } = props;
+  return (
+    <textarea
+      {...rest}
+      className={`w-full rounded-lg px-3 py-2.5 text-sm border outline-none resize-none focus:ring-1 focus:ring-indigo-500 ${
+        escuro ? "bg-slate-800 border-slate-700 text-white placeholder-slate-500" : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"
+      } ${className}`}
+    />
+  );
+}
+function CampoSelect(props) {
+  const { escuro } = useTema();
+  const { className = "", children, ...rest } = props;
+  return (
+    <select
+      {...rest}
+      className={`w-full rounded-lg px-3 py-2.5 text-sm border outline-none ${
+        escuro ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-200 text-slate-700"
+      } ${className}`}
+    >
+      {children}
+    </select>
+  );
+}
+function BarraPercentual({ valor, cor = "bg-indigo-600" }) {
+  const { escuro } = useTema();
+  return (
+    <div className={`w-full rounded-full h-1.5 ${escuro ? "bg-slate-800" : "bg-slate-100"}`}>
+      <div className={`${cor} h-1.5 rounded-full transition-all duration-300`} style={{ width: `${Math.min(100, Math.max(0, valor))}%` }} />
+    </div>
+  );
+}
+function Painel({ Icone, corIcone = "text-indigo-400", children, className = "" }) {
+  return (
+    <div className={`relative mt-6 rounded-xl bg-slate-900 text-white p-6 border border-slate-800 ${className}`}>
+      {Icone && (
+        <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center mb-3">
+          <Icone size={16} className={corIcone} />
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+function BotaoToggle({ ativo, onClick, children, corAtiva }) {
+  const { escuro } = useTema();
+  return (
+    <button
+      onClick={onClick}
+      className={`text-xs px-3 py-1.5 rounded-md font-medium transition active:opacity-70 ${
+        ativo ? corAtiva : escuro ? "border border-slate-700 text-slate-400" : "border border-slate-200 text-slate-500"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function Home() {
   const [perfil, setPerfil] = useState(null);
   const [dadosPorDia, setDadosPorDia] = useState({});
   const [metas, setMetas] = useState(METAS_PADRAO);
   const [dataSelecionada, setDataSelecionada] = useState(hojeISO());
-  const [aba, setAba] = useState("hoje");
+  const [aba, setAba] = useState("saude");
   const [carregado, setCarregado] = useState(false);
   const [editandoPerfil, setEditandoPerfil] = useState(false);
+  const [escuro, setEscuro] = useState(false);
 
   useEffect(() => {
     const salvo = localStorage.getItem("titan-data-v3");
@@ -129,24 +267,43 @@ export default function Home() {
       setPerfil(d.perfil ?? null);
       setDadosPorDia(d.dadosPorDia ?? {});
       setMetas({ ...METAS_PADRAO, ...(d.metas ?? {}) });
+      setEscuro(d.escuro ?? false);
     }
     setCarregado(true);
   }, []);
 
   useEffect(() => {
     if (!carregado) return;
-    localStorage.setItem("titan-data-v3", JSON.stringify({ perfil, dadosPorDia, metas }));
-  }, [perfil, dadosPorDia, metas, carregado]);
+    localStorage.setItem("titan-data-v3", JSON.stringify({ perfil, dadosPorDia, metas, escuro }));
+  }, [perfil, dadosPorDia, metas, escuro, carregado]);
+
+  useEffect(() => {
+    if (carregado && perfil && !perfil.dataInicioApp) {
+      setPerfil((p) => ({ ...p, dataInicioApp: hojeISO() }));
+    }
+  }, [carregado, perfil]);
+
+  const temaValue = { escuro, alternar: () => setEscuro((e) => !e) };
 
   if (!carregado) return null;
-  if (!perfil) return <Onboarding onSalvar={setPerfil} />;
+  if (!perfil) {
+    return (
+      <TemaContext.Provider value={temaValue}>
+        <Onboarding
+          onConcluir={(p, m) => {
+            setPerfil(p);
+            setMetas({ ...METAS_PADRAO, ...m });
+          }}
+        />
+      </TemaContext.Provider>
+    );
+  }
 
   function mesclarRegistro(bruto) {
     return {
       ...REGISTRO_PADRAO,
       ...bruto,
       atividadeFisica: { ...REGISTRO_PADRAO.atividadeFisica, ...(bruto?.atividadeFisica) },
-      trabalho: { ...REGISTRO_PADRAO.trabalho, ...(bruto?.trabalho) },
     };
   }
 
@@ -160,74 +317,79 @@ export default function Home() {
   }
   function atualizarMetas(atualizador) { setMetas((prev) => atualizador(prev)); }
 
-  const datasExistentes = Object.keys(dadosPorDia).sort();
-  const dataLimite = perfil.dataCadastro || datasExistentes[0] || hojeISO();
+  const dataLimite = perfil.dataInicioApp || perfil.dataCadastro || hojeISO();
 
   const streak = calcularStreak(dadosPorDia, hojeISO());
   const xpTotal = calcularXpTotal(dadosPorDia, metas);
   const { atual: nivelAtual, proximo: proximoNivel } = calcularNivel(xpTotal);
 
   const TABS = [
-    { id: "hoje", label: "Hoje", icone: "🏠" },
-    { id: "financas", label: "Finanças", icone: "💰" },
-    { id: "saude", label: "Saúde", icone: "❤️" },
-    { id: "vida", label: "Vida", icone: "🧭" },
-    { id: "metas", label: "Metas", icone: "🎯" },
-    { id: "relatorios", label: "Relatórios", icone: "📊" },
+    { id: "saude", label: "Saúde", Icone: Activity },
+    { id: "mental", label: "Mental", Icone: Brain },
+    { id: "financas", label: "Finanças", Icone: Wallet },
+    { id: "vida", label: "Vida", Icone: Compass },
+    { id: "metas", label: "Metas", Icone: Target },
+    { id: "relatorios", label: "Relatórios", Icone: BarChart3 },
   ];
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-neutral-50 to-neutral-100 pb-24">
-      <div className="max-w-md mx-auto px-5 py-8">
-        <SeletorData dataSelecionada={dataSelecionada} setDataSelecionada={setDataSelecionada} dataLimite={dataLimite} />
+    <TemaContext.Provider value={temaValue}>
+      <main className={`min-h-screen pb-28 transition-colors duration-300 ${escuro ? "bg-slate-950" : "bg-slate-50"}`}>
+        <div className="max-w-md mx-auto px-5 py-8">
+          <div className="flex items-center justify-between mb-6">
+            <div className="w-9 h-9" />
+            <SeletorData dataSelecionada={dataSelecionada} setDataSelecionada={setDataSelecionada} dataLimite={dataLimite} />
+            <BotaoTema />
+          </div>
 
-        {aba === "hoje" && (
-          <TabHoje
-            perfil={perfil}
-            registro={registro}
-            atualizarRegistro={atualizarRegistro}
-            metas={metas}
-            streak={streak}
-            xpTotal={xpTotal}
-            nivelAtual={nivelAtual}
-            proximoNivel={proximoNivel}
-            onEditarPerfil={() => setEditandoPerfil(true)}
-          />
-        )}
-        {aba === "financas" && (
-          <TabFinancas registro={registro} atualizarRegistro={atualizarRegistro} metas={metas} atualizarMetas={atualizarMetas} />
-        )}
-        {aba === "saude" && (
-          <TabSaude registro={registro} atualizarRegistro={atualizarRegistro} metas={metas} atualizarMetas={atualizarMetas} />
-        )}
-        {aba === "vida" && <TabVida registro={registro} atualizarRegistro={atualizarRegistro} />}
-        {aba === "metas" && (
-          <TabMetas dadosPorDia={dadosPorDia} metas={metas} atualizarMetas={atualizarMetas} registro={registro} />
-        )}
-        {aba === "relatorios" && <TabRelatorios dadosPorDia={dadosPorDia} metas={metas} xpTotal={xpTotal} />}
-      </div>
-
-      {editandoPerfil && (
-        <EditarPerfilModal perfil={perfil} onSalvar={(p) => { setPerfil(p); setEditandoPerfil(false); }} onCancelar={() => setEditandoPerfil(false)} />
-      )}
-
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-100 shadow-[0_-4px_16px_rgba(0,0,0,0.04)]">
-        <div className="max-w-md mx-auto grid grid-cols-6">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setAba(tab.id)}
-              className={`flex flex-col items-center gap-1 py-3 text-[10px] transition ${
-                aba === tab.id ? "text-neutral-900 font-semibold" : "text-neutral-400"
-              }`}
-            >
-              <span className={`text-base ${aba === tab.id ? "scale-110" : ""}`}>{tab.icone}</span>
-              {tab.label}
-            </button>
-          ))}
+          {aba === "saude" && (
+            <TabSaude
+              perfil={perfil}
+              registro={registro}
+              atualizarRegistro={atualizarRegistro}
+              metas={metas}
+              streak={streak}
+              xpTotal={xpTotal}
+              nivelAtual={nivelAtual}
+              proximoNivel={proximoNivel}
+              onEditarPerfil={() => setEditandoPerfil(true)}
+            />
+          )}
+          {aba === "mental" && <TabMental registro={registro} atualizarRegistro={atualizarRegistro} />}
+          {aba === "financas" && (
+            <TabFinancas registro={registro} atualizarRegistro={atualizarRegistro} metas={metas} atualizarMetas={atualizarMetas} />
+          )}
+          {aba === "vida" && <TabVida registro={registro} atualizarRegistro={atualizarRegistro} />}
+          {aba === "metas" && (
+            <TabMetas dadosPorDia={dadosPorDia} metas={metas} atualizarMetas={atualizarMetas} registro={registro} />
+          )}
+          {aba === "relatorios" && <TabRelatorios dadosPorDia={dadosPorDia} metas={metas} xpTotal={xpTotal} perfil={perfil} />}
         </div>
-      </nav>
-    </main>
+
+        {editandoPerfil && (
+          <EditarPerfilModal perfil={perfil} onSalvar={(p) => { setPerfil(p); setEditandoPerfil(false); }} onCancelar={() => setEditandoPerfil(false)} />
+        )}
+
+        <nav className={`fixed bottom-0 left-0 right-0 border-t ${escuro ? "bg-slate-950/95 border-slate-800" : "bg-white/95 border-slate-200"} backdrop-blur-md`}>
+          <div className="max-w-md mx-auto grid grid-cols-6">
+            {TABS.map((tab) => {
+              const ativo = aba === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setAba(tab.id)}
+                  className="flex flex-col items-center gap-1 py-3 transition active:opacity-70"
+                >
+                  <tab.Icone size={18} strokeWidth={2} className={ativo ? "text-indigo-500" : escuro ? "text-slate-500" : "text-slate-400"} />
+                  <span className={`text-[10px] ${ativo ? (escuro ? "text-white font-medium" : "text-slate-900 font-medium") : escuro ? "text-slate-500" : "text-slate-400"}`}>{tab.label}</span>
+                  <div className={`h-0.5 w-4 rounded-full ${ativo ? "bg-indigo-500" : "bg-transparent"}`} />
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      </main>
+    </TemaContext.Provider>
   );
 }
 
@@ -257,53 +419,126 @@ function calcularXpTotal(dadosPorDia, metas) {
   return total;
 }
 
-function Onboarding({ onSalvar }) {
-  const [form, setForm] = useState({ nome: "", idade: "", peso: "", sexo: "" });
-  function salvar() {
+function Onboarding({ onConcluir }) {
+  const { escuro, alternar } = useTema();
+  const [etapa, setEtapa] = useState(1);
+  const [form, setForm] = useState({ nome: "", idade: "", peso: "", sexo: "", acompanharCigarro: true });
+  const [metasForm, setMetasForm] = useState({ ...METAS_PADRAO });
+
+  function avancar() {
     if (!form.nome || !form.idade || !form.peso || !form.sexo) return;
-    onSalvar({ ...form, dataCadastro: hojeISO() });
+    setEtapa(2);
   }
+  function concluir() {
+    onConcluir({ ...form, dataCadastro: hojeISO(), dataInicioApp: hojeISO() }, metasForm);
+  }
+
   return (
-    <main className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center px-6">
-      <div className="max-w-sm w-full bg-white rounded-3xl p-6 shadow-xl">
-        <h1 className="text-2xl font-bold text-neutral-900 mb-1">Bem-vindo ao Titan</h1>
-        <p className="text-sm text-neutral-500 mb-6">Antes de começar, conta um pouco sobre você.</p>
-        <div className="space-y-3">
-          <input placeholder="Seu nome" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm" />
-          <input placeholder="Idade" type="number" value={form.idade} onChange={(e) => setForm({ ...form, idade: e.target.value })} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm" />
-          <input placeholder="Peso inicial (kg)" type="number" value={form.peso} onChange={(e) => setForm({ ...form, peso: e.target.value })} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm" />
-          <select value={form.sexo} onChange={(e) => setForm({ ...form, sexo: e.target.value })} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm text-neutral-700">
-            <option value="">Sexo</option>
-            <option value="masculino">Masculino</option>
-            <option value="feminino">Feminino</option>
-            <option value="outro">Outro</option>
-          </select>
-        </div>
-        <button onClick={salvar} className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl py-3 text-sm font-semibold mt-6">Começar</button>
+    <main className={`min-h-screen flex items-center justify-center px-6 ${escuro ? "bg-slate-950" : "bg-slate-100"}`}>
+      <button onClick={alternar} className={`absolute top-6 right-6 w-9 h-9 rounded-lg flex items-center justify-center ${escuro ? "bg-slate-900 text-slate-400" : "bg-white text-slate-500 border border-slate-200"}`}>
+        {escuro ? <Sun size={16} /> : <Moon size={16} />}
+      </button>
+      <div className={`max-w-sm w-full rounded-xl p-6 border ${escuro ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
+        {etapa === 1 && (
+          <>
+            <p className="text-xs font-medium text-indigo-500 mb-1 uppercase tracking-wide">Passo 1 de 2</p>
+            <Titulo>Bem-vindo ao Titan</Titulo>
+            <Sutil className="text-sm mb-6 block mt-1">Antes de começar, conta um pouco sobre você.</Sutil>
+            <div className="space-y-3">
+              <Campo placeholder="Seu nome" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
+              <Campo placeholder="Idade" type="number" value={form.idade} onChange={(e) => setForm({ ...form, idade: e.target.value })} />
+              <Campo placeholder="Peso inicial (kg)" type="number" value={form.peso} onChange={(e) => setForm({ ...form, peso: e.target.value })} />
+              <CampoSelect value={form.sexo} onChange={(e) => setForm({ ...form, sexo: e.target.value })}>
+                <option value="">Sexo</option>
+                <option value="masculino">Masculino</option>
+                <option value="feminino">Feminino</option>
+                <option value="outro">Outro</option>
+              </CampoSelect>
+              <label className={`flex items-center gap-2 text-sm pt-1 ${escuro ? "text-slate-300" : "text-slate-600"}`}>
+                <input type="checkbox" checked={form.acompanharCigarro} onChange={(e) => setForm({ ...form, acompanharCigarro: e.target.checked })} />
+                Quero acompanhar o hábito de fumar
+              </label>
+            </div>
+            <button onClick={avancar} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-3 text-sm font-medium mt-6 transition active:opacity-80">Continuar</button>
+          </>
+        )}
+
+        {etapa === 2 && (
+          <>
+            <p className="text-xs font-medium text-indigo-500 mb-1 uppercase tracking-wide">Passo 2 de 2</p>
+            <Titulo>Suas metas</Titulo>
+            <Sutil className="text-sm mb-6 block mt-1">Isso ajuda o app a te mostrar seu progresso. Pode editar depois, quando quiser.</Sutil>
+            <div className="space-y-3">
+              <div>
+                <Sutil className="text-xs mb-1 block">Meta pessoal</Sutil>
+                <CampoArea placeholder="Uma meta pessoal para você..." value={metasForm.metaPessoal} onChange={(e) => setMetasForm({ ...metasForm, metaPessoal: e.target.value })} className="h-16" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Sutil className="text-xs mb-1 block">Meta gasto diário (R$)</Sutil>
+                  <Campo type="number" placeholder="50" value={metasForm.gastoDiario} onChange={(e) => setMetasForm({ ...metasForm, gastoDiario: e.target.value })} />
+                </div>
+                <div>
+                  <Sutil className="text-xs mb-1 block">Meta invest. mês (R$)</Sutil>
+                  <Campo type="number" placeholder="500" value={metasForm.investimentoMensal} onChange={(e) => setMetasForm({ ...metasForm, investimentoMensal: e.target.value })} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Sutil className="text-xs mb-1 block">Meta de peso (kg)</Sutil>
+                  <Campo type="number" placeholder="75" value={metasForm.pesoMeta} onChange={(e) => setMetasForm({ ...metasForm, pesoMeta: e.target.value })} />
+                </div>
+                <div>
+                  <Sutil className="text-xs mb-1 block">Meta água/dia (L)</Sutil>
+                  <Campo type="number" placeholder="2.5" value={metasForm.aguaMetaLitros} onChange={(e) => setMetasForm({ ...metasForm, aguaMetaLitros: e.target.value })} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Sutil className="text-xs mb-1 block">Meta horário de dormir</Sutil>
+                  <Campo type="time" value={metasForm.horaDormirMeta} onChange={(e) => setMetasForm({ ...metasForm, horaDormirMeta: e.target.value })} />
+                </div>
+                <div>
+                  <Sutil className="text-xs mb-1 block">Atividade física (dias/mês)</Sutil>
+                  <Campo type="number" placeholder="12" value={metasForm.atividadeFisicaMetaMes} onChange={(e) => setMetasForm({ ...metasForm, atividadeFisicaMetaMes: e.target.value })} />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setEtapa(1)} className={`flex-1 rounded-lg py-3 text-sm font-medium transition active:opacity-70 border ${escuro ? "border-slate-700 text-slate-200" : "border-slate-200 text-slate-700"}`}>Voltar</button>
+              <button onClick={concluir} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-3 text-sm font-medium transition active:opacity-80">Concluir</button>
+            </div>
+          </>
+        )}
       </div>
     </main>
   );
 }
 
 function EditarPerfilModal({ perfil, onSalvar, onCancelar }) {
-  const [form, setForm] = useState(perfil);
+  const { escuro } = useTema();
+  const [form, setForm] = useState({ acompanharCigarro: true, ...perfil });
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center px-6 z-50">
-      <div className="bg-white rounded-3xl p-6 max-w-sm w-full">
-        <h3 className="font-bold text-lg text-neutral-900 mb-4">Editar perfil</h3>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center px-6 z-50">
+      <div className={`rounded-xl p-6 max-w-sm w-full border ${escuro ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
+        <h3 className={`font-semibold text-lg mb-4 ${escuro ? "text-white" : "text-slate-900"}`}>Editar perfil</h3>
         <div className="space-y-3">
-          <input placeholder="Nome" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm" />
-          <input placeholder="Idade" type="number" value={form.idade} onChange={(e) => setForm({ ...form, idade: e.target.value })} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm" />
-          <input placeholder="Peso (kg)" type="number" value={form.peso} onChange={(e) => setForm({ ...form, peso: e.target.value })} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm" />
-          <select value={form.sexo} onChange={(e) => setForm({ ...form, sexo: e.target.value })} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm text-neutral-700">
+          <Campo placeholder="Nome" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
+          <Campo placeholder="Idade" type="number" value={form.idade} onChange={(e) => setForm({ ...form, idade: e.target.value })} />
+          <Campo placeholder="Peso (kg)" type="number" value={form.peso} onChange={(e) => setForm({ ...form, peso: e.target.value })} />
+          <CampoSelect value={form.sexo} onChange={(e) => setForm({ ...form, sexo: e.target.value })}>
             <option value="masculino">Masculino</option>
             <option value="feminino">Feminino</option>
             <option value="outro">Outro</option>
-          </select>
+          </CampoSelect>
+          <label className={`flex items-center gap-2 text-sm pt-1 ${escuro ? "text-slate-300" : "text-slate-600"}`}>
+            <input type="checkbox" checked={form.acompanharCigarro} onChange={(e) => setForm({ ...form, acompanharCigarro: e.target.checked })} />
+            Quero acompanhar o hábito de fumar
+          </label>
         </div>
         <div className="flex gap-3 mt-6">
-          <button onClick={onCancelar} className="flex-1 border border-neutral-200 rounded-xl py-2 text-sm">Cancelar</button>
-          <button onClick={() => onSalvar(form)} className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl py-2 text-sm font-medium">Salvar</button>
+          <button onClick={onCancelar} className={`flex-1 rounded-lg py-2 text-sm transition active:opacity-70 border ${escuro ? "border-slate-700 text-slate-200" : "border-slate-200 text-slate-700"}`}>Cancelar</button>
+          <button onClick={() => onSalvar(form)} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2 text-sm font-medium transition active:opacity-80">Salvar</button>
         </div>
       </div>
     </div>
@@ -311,112 +546,112 @@ function EditarPerfilModal({ perfil, onSalvar, onCancelar }) {
 }
 
 function SeletorData({ dataSelecionada, setDataSelecionada, dataLimite }) {
+  const { escuro } = useTema();
   const ehHoje = dataSelecionada === hojeISO();
   const ehLimite = dataSelecionada <= dataLimite;
+  const botaoBase = `w-9 h-9 rounded-lg border flex items-center justify-center transition active:opacity-70 ${escuro ? "bg-slate-900 border-slate-800 text-slate-400" : "bg-white border-slate-200 text-slate-500"}`;
   return (
-    <div className="flex items-center justify-between mb-6">
-      <button
-        onClick={() => !ehLimite && setDataSelecionada(somarDias(dataSelecionada, -1))}
-        disabled={ehLimite}
-        className={`w-9 h-9 rounded-full border bg-white shadow-sm ${ehLimite ? "border-neutral-100 text-neutral-200" : "border-neutral-200 text-neutral-500"}`}
-      >
-        ←
-      </button>
-      <div className="text-center">
-        <p className="font-semibold text-neutral-900">{formatarData(dataSelecionada)}</p>
-        {!ehHoje && <p className="text-xs text-amber-600">editando dia passado</p>}
+    <div className="flex items-center gap-3">
+      <button onClick={() => !ehLimite && setDataSelecionada(somarDias(dataSelecionada, -1))} disabled={ehLimite} className={`${botaoBase} ${ehLimite ? "opacity-30" : ""}`}><ChevronLeft size={16} /></button>
+      <div className="text-center min-w-[100px]">
+        <p className={`font-medium text-sm ${escuro ? "text-white" : "text-slate-900"}`}>{formatarData(dataSelecionada)}</p>
+        {!ehHoje && <p className="text-[11px] text-amber-500">dia passado</p>}
       </div>
-      <button onClick={() => !ehHoje && setDataSelecionada(somarDias(dataSelecionada, 1))} disabled={ehHoje} className={`w-9 h-9 rounded-full border bg-white shadow-sm ${ehHoje ? "border-neutral-100 text-neutral-200" : "border-neutral-200 text-neutral-500"}`}>→</button>
+      <button onClick={() => !ehHoje && setDataSelecionada(somarDias(dataSelecionada, 1))} disabled={ehHoje} className={`${botaoBase} ${ehHoje ? "opacity-30" : ""}`}><ChevronRight size={16} /></button>
     </div>
   );
 }
 
-function Cartao({ children, className = "" }) {
-  return <div className={`bg-white rounded-2xl border border-neutral-100 shadow-sm p-4 ${className}`}>{children}</div>;
-}
-function BarraPercentual({ valor, cor = "bg-neutral-900" }) {
-  return (
-    <div className="w-full bg-neutral-100 rounded-full h-2">
-      <div className={`${cor} h-2 rounded-full transition-all duration-300`} style={{ width: `${Math.min(100, valor)}%` }} />
-    </div>
-  );
-}
-function Hero({ children, className = "" }) {
-  return <div className={`mt-6 rounded-3xl text-white p-6 shadow-lg ${className}`}>{children}</div>;
-}
-
-function TabHoje({ perfil, registro, atualizarRegistro, metas, streak, xpTotal, nivelAtual, proximoNivel, onEditarPerfil }) {
+function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal, nivelAtual, proximoNivel, onEditarPerfil }) {
+  const { escuro } = useTema();
+  const [novaRefeicao, setNovaRefeicao] = useState({ nome: "", kcal: "" });
   const progresso = proximoNivel
     ? Math.round(((xpTotal - nivelAtual.xpNecessario) / (proximoNivel.xpNecessario - nivelAtual.xpNecessario)) * 100)
     : 100;
   const sonoOk = dormiuNaMeta(registro.horaDormiu, metas.horaDormirMeta);
-  const rotinaPercent = Math.round((((registro.atividadeFisica.feita ? 1 : 0) + (sonoOk ? 1 : 0)) / 2) * 100);
-  const trabalhoChecks = Object.values(registro.trabalho).filter(Boolean).length;
-  const trabalhoPercent = Math.round((trabalhoChecks / 3) * 100);
-  const relacionamentoPercent = registro.notaRelacionamento.trim() ? 100 : 0;
   const pesoRef = parseFloat(registro.peso) || parseFloat(perfil.peso) || 75;
   const calorias = registro.atividadeFisica.feita ? calcularCalorias(registro.atividadeFisica.tipo, registro.atividadeFisica.minutos, pesoRef) : 0;
+  const totalCalorias = registro.refeicoes.reduce((s, r) => s + r.kcal, 0);
+  const acompanhaCigarro = perfil.acompanharCigarro !== false;
+  const nivelDisposicao = Math.round(registro.saudeFisicaPercent / 25);
 
-  const dadosResumo = [
-    { nome: "Rotina", valor: rotinaPercent },
-    { nome: "Mental", valor: registro.humorPercent },
-    { nome: "Física", valor: registro.saudeFisicaPercent },
-    { nome: "Trabalho", valor: trabalhoPercent },
-    { nome: "Relação", valor: relacionamentoPercent },
-  ];
+  function adicionarRefeicao() {
+    if (!novaRefeicao.nome || !novaRefeicao.kcal) return;
+    atualizarRegistro((r) => ({ ...r, refeicoes: [...r.refeicoes, { id: Date.now(), nome: novaRefeicao.nome, kcal: parseFloat(novaRefeicao.kcal) }] }));
+    setNovaRefeicao({ nome: "", kcal: "" });
+  }
+  function removerRefeicao(id) { atualizarRegistro((r) => ({ ...r, refeicoes: r.refeicoes.filter((x) => x.id !== id) })); }
 
   return (
     <>
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-neutral-400">Olá</p>
-          <h1 className="text-2xl font-bold mt-1 text-neutral-900">{perfil.nome}</h1>
+          <Sutil className="text-sm">Olá</Sutil>
+          <h1 className={`text-2xl font-semibold tracking-tight mt-1 ${escuro ? "text-white" : "text-slate-900"}`}>{perfil.nome}</h1>
         </div>
-        <button onClick={onEditarPerfil} className="w-9 h-9 rounded-full bg-white border border-neutral-200 shadow-sm text-neutral-400">✏️</button>
+        <button onClick={onEditarPerfil} className={`w-9 h-9 rounded-lg border flex items-center justify-center transition active:opacity-70 ${escuro ? "bg-slate-900 border-slate-800 text-slate-400" : "bg-white border-slate-200 text-slate-500"}`}><Pencil size={15} /></button>
       </div>
 
-      <Hero className="bg-gradient-to-br from-orange-500 to-red-500">
-        <p className="text-sm font-medium opacity-90 mb-3">🚭 Cigarro</p>
-        <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => atualizarRegistro((r) => ({ ...r, fumei: false }))} className={`rounded-xl py-3 text-sm font-semibold border-2 ${registro.fumei === false ? "bg-white text-orange-600 border-white" : "border-white/40 text-white"}`}>Não fumei</button>
-          <button onClick={() => atualizarRegistro((r) => ({ ...r, fumei: true }))} className={`rounded-xl py-3 text-sm font-semibold border-2 ${registro.fumei === true ? "bg-white text-red-600 border-white" : "border-white/40 text-white"}`}>Fumei</button>
-        </div>
-        <p className="text-xs opacity-90 mt-3">🔥 Sequência sem fumar: {streak} dias</p>
-      </Hero>
+      {acompanhaCigarro && (
+        <Painel Icone={registro.fumei === false ? CigaretteOff : Cigarette} corIcone={registro.fumei === false ? "text-emerald-400" : registro.fumei === true ? "text-rose-400" : "text-slate-400"}>
+          <Rotulo className="!text-slate-300 mb-3">Cigarro</Rotulo>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => atualizarRegistro((r) => ({ ...r, fumei: r.fumei === false ? null : false }))}
+              className={`rounded-lg py-3 text-sm font-medium border transition active:opacity-80 ${registro.fumei === false ? "bg-emerald-500 text-white border-emerald-500" : "border-slate-700 text-slate-300"}`}
+            >
+              Não fumei
+            </button>
+            <button
+              onClick={() => atualizarRegistro((r) => ({ ...r, fumei: r.fumei === true ? null : true }))}
+              className={`rounded-lg py-3 text-sm font-medium border transition active:opacity-80 ${registro.fumei === true ? "bg-rose-500 text-white border-rose-500" : "border-slate-700 text-slate-300"}`}
+            >
+              Fumei
+            </button>
+          </div>
+          <div className="flex items-center gap-1.5 mt-3">
+            <Flame size={13} className="text-amber-400" />
+            <p className="text-xs text-slate-400">Sequência sem fumar: {streak} dias · toque de novo pra desmarcar</p>
+          </div>
+        </Painel>
+      )}
 
-      <Hero className="bg-gradient-to-br from-neutral-900 to-neutral-700">
-        <p className="text-sm opacity-60">Nível {nivelAtual.nivel}</p>
-        <p className="text-xl font-bold">{nivelAtual.nome}</p>
+      <Painel Icone={Award} corIcone="text-indigo-400">
+        <Sutil className="!text-slate-400 text-sm">Nível {nivelAtual.nivel}</Sutil>
+        <p className="text-lg font-semibold">{nivelAtual.nome}</p>
         <div className="mt-4">
-          <div className="flex justify-between text-xs opacity-70 mb-1">
+          <div className="flex justify-between text-xs text-slate-400 mb-1">
             <span>{xpTotal} XP</span>
             <span>{proximoNivel ? `próximo: ${proximoNivel.xpNecessario}` : "nível máximo"}</span>
           </div>
-          <div className="w-full bg-white/15 rounded-full h-2">
-            <div className="bg-white h-2 rounded-full transition-all duration-300" style={{ width: `${progresso}%` }} />
+          <div className="w-full bg-slate-800 rounded-full h-1.5">
+            <div className="bg-indigo-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${progresso}%` }} />
           </div>
         </div>
-      </Hero>
+      </Painel>
 
       <div className="mt-8">
-        <h2 className="font-bold text-neutral-900 mb-3">Rotina do dia</h2>
+        <TituloSecao Icone={Activity}>Rotina do dia</TituloSecao>
 
         <Cartao>
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-neutral-700">🏋️ Atividade física</span>
-            <button onClick={() => atualizarRegistro((r) => ({ ...r, atividadeFisica: { ...r.atividadeFisica, feita: !r.atividadeFisica.feita } }))} className={`text-xs px-3 py-1.5 rounded-full font-medium ${registro.atividadeFisica.feita ? "bg-emerald-500 text-white" : "border border-neutral-200 text-neutral-500"}`}>
-              {registro.atividadeFisica.feita ? "Feita ✓" : "Marcar"}
-            </button>
+            <div className="flex items-center gap-2">
+              <Dumbbell size={15} className="text-indigo-500" />
+              <Rotulo>Atividade física</Rotulo>
+            </div>
+            <BotaoToggle ativo={registro.atividadeFisica.feita} corAtiva="bg-emerald-500 text-white" onClick={() => atualizarRegistro((r) => ({ ...r, atividadeFisica: { ...r.atividadeFisica, feita: !r.atividadeFisica.feita } }))}>
+              {registro.atividadeFisica.feita ? "Feita" : "Marcar"}
+            </BotaoToggle>
           </div>
           {registro.atividadeFisica.feita && (
             <div className="mt-3 space-y-2">
-              <select value={registro.atividadeFisica.tipo} onChange={(e) => atualizarRegistro((r) => ({ ...r, atividadeFisica: { ...r.atividadeFisica, tipo: e.target.value } }))} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm">
+              <CampoSelect value={registro.atividadeFisica.tipo} onChange={(e) => atualizarRegistro((r) => ({ ...r, atividadeFisica: { ...r.atividadeFisica, tipo: e.target.value } }))}>
                 <option value="">Qual atividade?</option>
                 {TIPOS_ATIVIDADE.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <input type="number" placeholder="Duração (minutos)" value={registro.atividadeFisica.minutos} onChange={(e) => atualizarRegistro((r) => ({ ...r, atividadeFisica: { ...r.atividadeFisica, minutos: e.target.value } }))} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm" />
+              </CampoSelect>
+              <Campo type="number" placeholder="Duração (minutos)" value={registro.atividadeFisica.minutos} onChange={(e) => atualizarRegistro((r) => ({ ...r, atividadeFisica: { ...r.atividadeFisica, minutos: e.target.value } }))} />
               {registro.atividadeFisica.tipo && registro.atividadeFisica.minutos && (
-                <p className="text-xs text-emerald-600 font-medium">🔥 ~{calorias} kcal estimadas (baseado em tabela MET padrão)</p>
+                <p className="text-xs text-emerald-500">~{calorias} kcal estimadas (tabela MET padrão)</p>
               )}
             </div>
           )}
@@ -424,41 +659,119 @@ function TabHoje({ perfil, registro, atualizarRegistro, metas, streak, xpTotal, 
 
         <Cartao className="mt-3">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-neutral-700">😴 Horário que dormiu</span>
-            <span className={`text-xs font-semibold ${sonoOk ? "text-emerald-600" : "text-neutral-400"}`}>
+            <div className="flex items-center gap-2">
+              <Moon size={15} className="text-indigo-500" />
+              <Rotulo>Horário que dormiu</Rotulo>
+            </div>
+            <span className={`text-xs font-medium ${sonoOk ? "text-emerald-500" : "text-slate-400"}`}>
               {registro.horaDormiu ? (sonoOk ? "dentro da meta" : "fora da meta") : ""}
             </span>
           </div>
-          <input type="time" value={registro.horaDormiu} onChange={(e) => atualizarRegistro((r) => ({ ...r, horaDormiu: e.target.value }))} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm" />
-          <p className="text-xs text-neutral-400 mt-2">Meta: {metas.horaDormirMeta || "não definida"}</p>
+          <Campo type="time" value={registro.horaDormiu} onChange={(e) => atualizarRegistro((r) => ({ ...r, horaDormiu: e.target.value }))} />
+          <Sutil className="text-xs mt-2 block">Meta: {metas.horaDormirMeta || "não definida"}</Sutil>
         </Cartao>
-      </div>
 
-      <div className="mt-8">
-        <h2 className="font-bold text-neutral-900 mb-3">Resumo do dia</h2>
-        <Cartao className="h-56">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={dadosResumo} layout="vertical" margin={{ left: 10, right: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
-              <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: "#a3a3a3" }} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="nome" tick={{ fontSize: 12, fill: "#525252" }} axisLine={false} tickLine={false} width={70} />
-              <Tooltip />
-              <Bar dataKey="valor" fill="#534AB7" radius={[0, 6, 6, 0]} barSize={16} />
-            </BarChart>
-          </ResponsiveContainer>
+        <Cartao className="mt-3">
+          <div className="flex justify-between items-center mb-2">
+            <Rotulo>Como você está se sentindo hoje</Rotulo>
+            <span className="text-sm font-medium text-indigo-500">{NIVEL_DISPOSICAO[nivelDisposicao]}</span>
+          </div>
+          <input type="range" min="0" max="4" step="1" value={nivelDisposicao} onChange={(e) => atualizarRegistro((r) => ({ ...r, saudeFisicaPercent: parseInt(e.target.value) * 25 }))} className="w-full accent-indigo-600" />
+          <div className="flex justify-between text-[10px] mt-1">
+            <Sutil>Muito indisposto</Sutil>
+            <Sutil>Muito disposto</Sutil>
+          </div>
         </Cartao>
-        <div className="flex justify-between text-xs text-neutral-500 mt-3 px-1">
-          <span>💧 {(registro.aguaCopos * 0.25).toFixed(2)} L</span>
-          <span>💰 R$ {registro.gastos.reduce((s, g) => s + g.valor, 0).toFixed(2).replace(".", ",")}</span>
-          <span>🍽 {registro.refeicoes.reduce((s, r) => s + r.kcal, 0)} kcal</span>
-          <span>🔥 {calorias} kcal</span>
-        </div>
+
+        <Cartao className="mt-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Scale size={15} className="text-indigo-500" />
+            <Rotulo>Peso (kg)</Rotulo>
+          </div>
+          <Campo type="number" placeholder="ex: 78.5" value={registro.peso} onChange={(e) => atualizarRegistro((r) => ({ ...r, peso: e.target.value }))} />
+        </Cartao>
+
+        <Cartao className="mt-3">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <Droplets size={15} className="text-indigo-500" />
+              <Rotulo>Água</Rotulo>
+            </div>
+            <span className="text-sm text-slate-500 font-medium">{(registro.aguaCopos * 0.25).toFixed(2)} L</span>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <button onClick={() => atualizarRegistro((r) => ({ ...r, aguaCopos: Math.max(0, r.aguaCopos - 1) }))} className={`w-9 h-9 rounded-lg border transition active:opacity-70 ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-500"}`}>−</button>
+            <div className={`flex-1 flex items-center justify-center text-sm ${escuro ? "text-slate-300" : "text-slate-600"}`}>{registro.aguaCopos} copos (250ml)</div>
+            <button onClick={() => atualizarRegistro((r) => ({ ...r, aguaCopos: r.aguaCopos + 1 }))} className={`w-9 h-9 rounded-lg border transition active:opacity-70 ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-500"}`}>+</button>
+          </div>
+        </Cartao>
+
+        <Cartao className="mt-3">
+          <div className="flex items-center gap-2 mb-2">
+            <UtensilsCrossed size={15} className="text-indigo-500" />
+            <Rotulo>Alimentação</Rotulo>
+          </div>
+          <p className={`text-2xl font-semibold mb-3 ${escuro ? "text-white" : "text-slate-900"}`}>{totalCalorias} kcal</p>
+          <div className="flex gap-2 mb-3">
+            <Campo placeholder="Alimento" value={novaRefeicao.nome} onChange={(e) => setNovaRefeicao({ ...novaRefeicao, nome: e.target.value })} className="flex-1" />
+            <Campo placeholder="kcal" type="number" value={novaRefeicao.kcal} onChange={(e) => setNovaRefeicao({ ...novaRefeicao, kcal: e.target.value })} className="w-20" />
+          </div>
+          <button onClick={adicionarRefeicao} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2 text-sm font-medium mb-3 transition active:opacity-80">Adicionar</button>
+          <div className="space-y-2">
+            {registro.refeicoes.map((r) => (
+              <div key={r.id} className="flex items-center justify-between text-sm">
+                <span className={escuro ? "text-slate-200" : "text-slate-700"}>{r.nome}</span>
+                <div className="flex items-center gap-3">
+                  <Sutil>{r.kcal} kcal</Sutil>
+                  <button onClick={() => removerRefeicao(r.id)} className="text-slate-400">✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Cartao>
       </div>
     </>
   );
 }
 
+function TabMental({ registro, atualizarRegistro }) {
+  const { escuro } = useTema();
+  return (
+    <>
+      <Titulo>Mental</Titulo>
+      <Painel Icone={Brain} corIcone="text-indigo-400">
+        <Sutil className="!text-slate-400 text-sm">Saúde mental</Sutil>
+        <p className="text-lg font-semibold">Como você está hoje?</p>
+      </Painel>
+
+      <Cartao className="mt-6">
+        <Rotulo className="mb-3">Como está sua saúde mental</Rotulo>
+        <div className="flex justify-between gap-2 mb-4">
+          {CARINHAS_HUMOR.map((c) => (
+            <button
+              key={c.emoji}
+              onClick={() => atualizarRegistro((r) => ({ ...r, humorPercent: c.valor, humorEmoji: c.emoji }))}
+              className={`text-xl w-11 h-11 rounded-lg flex items-center justify-center transition active:opacity-70 ${
+                registro.humorEmoji === c.emoji ? "bg-indigo-500/15 ring-1 ring-indigo-500" : escuro ? "bg-slate-800" : "bg-slate-50"
+              }`}
+            >
+              {c.emoji}
+            </button>
+          ))}
+        </div>
+        <div className="flex justify-between items-center mb-2">
+          <Sutil className="text-sm">Ajuste fino</Sutil>
+          <span className="text-sm font-medium text-indigo-500">{registro.humorPercent}%</span>
+        </div>
+        <input type="range" min="0" max="100" value={registro.humorPercent} onChange={(e) => atualizarRegistro((r) => ({ ...r, humorPercent: parseInt(e.target.value), humorEmoji: "" }))} className="w-full accent-indigo-600" />
+        <CampoArea placeholder="Escreva livremente sobre o seu dia..." value={registro.notaHumor} onChange={(e) => atualizarRegistro((r) => ({ ...r, notaHumor: e.target.value }))} className="mt-3 h-28" />
+      </Cartao>
+    </>
+  );
+}
+
 function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas }) {
+  const { escuro } = useTema();
   const [novoGasto, setNovoGasto] = useState({ desc: "", valor: "" });
   const [novoInvest, setNovoInvest] = useState({ valor: "" });
   const totalGasto = registro.gastos.reduce((s, g) => s + g.valor, 0);
@@ -481,163 +794,62 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas }) {
 
   return (
     <>
-      <h1 className="text-2xl font-bold text-neutral-900">Finanças</h1>
+      <Titulo>Finanças</Titulo>
 
-      <Hero className="bg-gradient-to-br from-emerald-600 to-teal-500">
+      <Painel Icone={Wallet} corIcone="text-emerald-400">
         <div className="flex justify-between items-start">
           <div>
-            <p className="text-sm opacity-80">Total gasto neste dia</p>
-            <p className="text-3xl font-bold mt-1">R$ {totalGasto.toFixed(2).replace(".", ",")}</p>
+            <Sutil className="!text-slate-400 text-sm">Total gasto neste dia</Sutil>
+            <p className="text-2xl font-semibold mt-1">R$ {totalGasto.toFixed(2).replace(".", ",")}</p>
           </div>
           {dentroDaMeta !== null && (
-            <span className={`text-xs px-2 py-1 rounded-full font-medium ${dentroDaMeta ? "bg-white/20" : "bg-red-900/30"}`}>
+            <span className={`text-xs px-2 py-1 rounded-md font-medium ${dentroDaMeta ? "bg-emerald-500/15 text-emerald-400" : "bg-rose-500/15 text-rose-400"}`}>
               {dentroDaMeta ? "dentro da meta" : "acima da meta"}
             </span>
           )}
         </div>
-        <p className="text-xs opacity-70 mt-2">Meta diária: R$ {meta ? meta.toFixed(2).replace(".", ",") : "não definida"}</p>
-      </Hero>
+        <p className="text-xs text-slate-400 mt-2">Meta diária: R$ {meta ? meta.toFixed(2).replace(".", ",") : "não definida"}</p>
+      </Painel>
 
       <Cartao className="mt-4">
-        <p className="text-xs font-medium text-neutral-700 mb-2">Definir meta de gasto diário</p>
-        <input type="number" placeholder="ex: 50.00" value={metas.gastoDiario} onChange={(e) => atualizarMetas((m) => ({ ...m, gastoDiario: e.target.value }))} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm" />
+        <Sutil className="text-xs mb-2 block">Definir meta de gasto diário</Sutil>
+        <Campo type="number" placeholder="ex: 50.00" value={metas.gastoDiario} onChange={(e) => atualizarMetas((m) => ({ ...m, gastoDiario: e.target.value }))} />
       </Cartao>
 
       <Cartao className="mt-6">
-        <p className="text-sm font-medium text-neutral-700 mb-3">Adicionar gasto</p>
-        <input placeholder="Com o que? (ex: almoço)" value={novoGasto.desc} onChange={(e) => setNovoGasto({ ...novoGasto, desc: e.target.value })} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm mb-2" />
-        <input placeholder="Valor (ex: 35.90)" type="number" value={novoGasto.valor} onChange={(e) => setNovoGasto({ ...novoGasto, valor: e.target.value })} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm mb-3" />
-        <button onClick={adicionarGasto} className="w-full bg-gradient-to-r from-emerald-600 to-teal-500 text-white rounded-xl py-2 text-sm font-semibold">Adicionar</button>
+        <Rotulo className="mb-3">Adicionar gasto</Rotulo>
+        <Campo placeholder="Com o que? (ex: almoço)" value={novoGasto.desc} onChange={(e) => setNovoGasto({ ...novoGasto, desc: e.target.value })} className="mb-2" />
+        <Campo placeholder="Valor (ex: 35.90)" type="number" value={novoGasto.valor} onChange={(e) => setNovoGasto({ ...novoGasto, valor: e.target.value })} className="mb-3" />
+        <button onClick={adicionarGasto} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2 text-sm font-medium transition active:opacity-80">Adicionar</button>
       </Cartao>
 
       <div className="mt-4 space-y-2">
         {registro.gastos.map((g) => (
-          <div key={g.id} className="flex items-center justify-between bg-white rounded-xl border border-neutral-100 p-3 shadow-sm">
-            <span className="text-sm text-neutral-700">{g.desc}</span>
+          <div key={g.id} className={`flex items-center justify-between rounded-lg border p-3 ${escuro ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
+            <span className={`text-sm ${escuro ? "text-slate-200" : "text-slate-700"}`}>{g.desc}</span>
             <div className="flex items-center gap-3">
-              <span className="text-sm font-medium">R$ {g.valor.toFixed(2).replace(".", ",")}</span>
-              <button onClick={() => removerGasto(g.id)} className="text-neutral-300 text-sm">✕</button>
+              <span className={`text-sm font-medium ${escuro ? "text-white" : "text-slate-900"}`}>R$ {g.valor.toFixed(2).replace(".", ",")}</span>
+              <button onClick={() => removerGasto(g.id)} className="text-slate-400 text-sm">✕</button>
             </div>
           </div>
         ))}
       </div>
 
       <div className="mt-8">
-        <h2 className="font-bold text-neutral-900 mb-3">Investimento do dia</h2>
+        <TituloSecao Icone={PiggyBank}>Investimento do dia</TituloSecao>
         <Cartao>
-          <p className="text-2xl font-bold text-emerald-600 mb-3">R$ {totalInvestido.toFixed(2).replace(".", ",")}</p>
+          <p className="text-2xl font-semibold text-emerald-500 mb-3">R$ {totalInvestido.toFixed(2).replace(".", ",")}</p>
           <div className="flex gap-2">
-            <input placeholder="Quanto investiu?" type="number" value={novoInvest.valor} onChange={(e) => setNovoInvest({ valor: e.target.value })} className="flex-1 border border-neutral-200 rounded-xl px-3 py-2 text-sm" />
-            <button onClick={adicionarInvestimento} className="bg-emerald-600 text-white rounded-xl px-4 text-sm font-medium">Add</button>
+            <Campo placeholder="Quanto investiu?" type="number" value={novoInvest.valor} onChange={(e) => setNovoInvest({ valor: e.target.value })} className="flex-1" />
+            <button onClick={adicionarInvestimento} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 text-sm font-medium transition active:opacity-80">Add</button>
           </div>
           <div className="space-y-2 mt-3">
             {registro.investimentos.map((i) => (
               <div key={i.id} className="flex items-center justify-between text-sm">
-                <span className="text-neutral-500">Aporte</span>
+                <Sutil>Aporte</Sutil>
                 <div className="flex items-center gap-3">
-                  <span className="text-emerald-600 font-medium">R$ {i.valor.toFixed(2).replace(".", ",")}</span>
-                  <button onClick={() => removerInvestimento(i.id)} className="text-neutral-300">✕</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Cartao>
-      </div>
-    </>
-  );
-}
-
-function TabSaude({ registro, atualizarRegistro, metas, atualizarMetas }) {
-  const [novaRefeicao, setNovaRefeicao] = useState({ nome: "", kcal: "" });
-  const totalCalorias = registro.refeicoes.reduce((s, r) => s + r.kcal, 0);
-  const pesoAtual = parseFloat(registro.peso) || null;
-  const pesoMeta = parseFloat(metas.pesoMeta) || null;
-  const diferenca = pesoAtual !== null && pesoMeta !== null ? (pesoAtual - pesoMeta) : null;
-
-  function adicionarRefeicao() {
-    if (!novaRefeicao.nome || !novaRefeicao.kcal) return;
-    atualizarRegistro((r) => ({ ...r, refeicoes: [...r.refeicoes, { id: Date.now(), nome: novaRefeicao.nome, kcal: parseFloat(novaRefeicao.kcal) }] }));
-    setNovaRefeicao({ nome: "", kcal: "" });
-  }
-  function removerRefeicao(id) { atualizarRegistro((r) => ({ ...r, refeicoes: r.refeicoes.filter((x) => x.id !== id) })); }
-
-  return (
-    <>
-      <h1 className="text-2xl font-bold text-neutral-900">Saúde</h1>
-
-      <Hero className="bg-gradient-to-br from-rose-500 to-pink-500">
-        <p className="text-sm opacity-90">Mental & física</p>
-        <p className="text-xl font-bold mt-1">Como você está hoje?</p>
-      </Hero>
-
-      <div className="mt-6">
-        <h2 className="font-bold text-neutral-900 mb-3">Mental</h2>
-        <Cartao>
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium text-neutral-700">Como você está se sentindo</span>
-            <span className="text-sm font-semibold text-rose-600">{registro.humorPercent}%</span>
-          </div>
-          <input type="range" min="0" max="100" value={registro.humorPercent} onChange={(e) => atualizarRegistro((r) => ({ ...r, humorPercent: parseInt(e.target.value) }))} className="w-full" />
-          <textarea placeholder="Escreva livremente sobre o seu dia..." value={registro.notaHumor} onChange={(e) => atualizarRegistro((r) => ({ ...r, notaHumor: e.target.value }))} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm mt-3 h-24 resize-none" />
-        </Cartao>
-      </div>
-
-      <div className="mt-6">
-        <h2 className="font-bold text-neutral-900 mb-3">Física</h2>
-        <Cartao>
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium text-neutral-700">Como está sua saúde física</span>
-            <span className="text-sm font-semibold text-pink-600">{registro.saudeFisicaPercent}%</span>
-          </div>
-          <input type="range" min="0" max="100" value={registro.saudeFisicaPercent} onChange={(e) => atualizarRegistro((r) => ({ ...r, saudeFisicaPercent: parseInt(e.target.value) }))} className="w-full" />
-        </Cartao>
-
-        <Cartao className="mt-3">
-          <p className="text-sm font-medium text-neutral-700 mb-2">Peso</p>
-          <div className="grid grid-cols-2 gap-2 mb-2">
-            <div>
-              <p className="text-xs text-neutral-400 mb-1">Atual (kg)</p>
-              <input type="number" placeholder="ex: 78.5" value={registro.peso} onChange={(e) => atualizarRegistro((r) => ({ ...r, peso: e.target.value }))} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm" />
-            </div>
-            <div>
-              <p className="text-xs text-neutral-400 mb-1">Meta (kg)</p>
-              <input type="number" placeholder="ex: 75" value={metas.pesoMeta} onChange={(e) => atualizarMetas((m) => ({ ...m, pesoMeta: e.target.value }))} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm" />
-            </div>
-          </div>
-          {diferenca !== null && (
-            <p className={`text-xs mt-1 font-medium ${diferenca <= 0 ? "text-emerald-600" : "text-neutral-500"}`}>
-              {diferenca <= 0 ? "Meta atingida!" : `Faltam ${diferenca.toFixed(1)} kg para a meta`}
-            </p>
-          )}
-        </Cartao>
-
-        <Cartao className="mt-3">
-          <div className="flex justify-between items-center">
-            <p className="text-sm font-medium text-neutral-700">💧 Água</p>
-            <span className="text-sm text-neutral-500">{(registro.aguaCopos * 0.25).toFixed(2)} L</span>
-          </div>
-          <div className="flex gap-2 mt-3">
-            <button onClick={() => atualizarRegistro((r) => ({ ...r, aguaCopos: Math.max(0, r.aguaCopos - 1) }))} className="w-10 h-10 rounded-full border border-neutral-200 text-neutral-500">−</button>
-            <div className="flex-1 flex items-center justify-center text-sm text-neutral-600">{registro.aguaCopos} copos (250ml)</div>
-            <button onClick={() => atualizarRegistro((r) => ({ ...r, aguaCopos: r.aguaCopos + 1 }))} className="w-10 h-10 rounded-full border border-neutral-200 text-neutral-500">+</button>
-          </div>
-        </Cartao>
-
-        <Cartao className="mt-3">
-          <p className="text-sm font-medium text-neutral-700 mb-2">🍽 Alimentação</p>
-          <p className="text-2xl font-bold text-neutral-900 mb-3">{totalCalorias} kcal</p>
-          <div className="flex gap-2 mb-3">
-            <input placeholder="Alimento" value={novaRefeicao.nome} onChange={(e) => setNovaRefeicao({ ...novaRefeicao, nome: e.target.value })} className="flex-1 border border-neutral-200 rounded-xl px-3 py-2 text-sm" />
-            <input placeholder="kcal" type="number" value={novaRefeicao.kcal} onChange={(e) => setNovaRefeicao({ ...novaRefeicao, kcal: e.target.value })} className="w-20 border border-neutral-200 rounded-xl px-3 py-2 text-sm" />
-          </div>
-          <button onClick={adicionarRefeicao} className="w-full bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-xl py-2 text-sm font-semibold mb-3">Adicionar</button>
-          <div className="space-y-2">
-            {registro.refeicoes.map((r) => (
-              <div key={r.id} className="flex items-center justify-between text-sm">
-                <span className="text-neutral-700">{r.nome}</span>
-                <div className="flex items-center gap-3">
-                  <span className="text-neutral-500">{r.kcal} kcal</span>
-                  <button onClick={() => removerRefeicao(r.id)} className="text-neutral-300">✕</button>
+                  <span className="text-emerald-500 font-medium">R$ {i.valor.toFixed(2).replace(".", ",")}</span>
+                  <button onClick={() => removerInvestimento(i.id)} className="text-slate-400">✕</button>
                 </div>
               </div>
             ))}
@@ -649,55 +861,67 @@ function TabSaude({ registro, atualizarRegistro, metas, atualizarMetas }) {
 }
 
 function TabVida({ registro, atualizarRegistro }) {
-  const trabalhoChecks = Object.values(registro.trabalho).filter(Boolean).length;
-  const trabalhoPercent = Math.round((trabalhoChecks / 3) * 100);
-  function toggleTrabalho(campo) { atualizarRegistro((r) => ({ ...r, trabalho: { ...r.trabalho, [campo]: !r.trabalho[campo] } })); }
+  const trabalhoPercent = Math.round((registro.trabalhoClassificacao / (NIVEL_TRABALHO.length - 1)) * 100);
 
   return (
     <>
-      <h1 className="text-2xl font-bold text-neutral-900">Vida</h1>
+      <Titulo>Vida</Titulo>
 
-      <Hero className="bg-gradient-to-br from-indigo-600 to-blue-500">
-        <p className="text-sm opacity-90">Trabalho & relacionamento</p>
-        <p className="text-xl font-bold mt-1">O que construiu hoje?</p>
-      </Hero>
+      <Painel Icone={Compass} corIcone="text-indigo-400">
+        <Sutil className="!text-slate-400 text-sm">Trabalho & relacionamento</Sutil>
+        <p className="text-lg font-semibold">O que construiu hoje?</p>
+      </Painel>
 
       <div className="mt-6">
-        <div className="flex justify-between items-center mb-3">
-          <h2 className="font-bold text-neutral-900">💼 Trabalho</h2>
-          <span className="text-sm font-semibold text-blue-600">{trabalhoPercent}%</span>
-        </div>
-        <BarraPercentual valor={trabalhoPercent} cor="bg-blue-500" />
-        <div className="space-y-2 mt-3">
-          <ChecklistItem label="Aprendi algo novo" checado={registro.trabalho.aprendeu} onClick={() => toggleTrabalho("aprendeu")} cor="bg-blue-600" />
-          <ChecklistItem label="Li algum livro" checado={registro.trabalho.leu} onClick={() => toggleTrabalho("leu")} cor="bg-blue-600" />
-          <ChecklistItem label="Fui produtivo" checado={registro.trabalho.produtivo} onClick={() => toggleTrabalho("produtivo")} cor="bg-blue-600" />
-        </div>
+        <TituloSecao Icone={Briefcase}>Trabalho</TituloSecao>
+        <Cartao>
+          <div className="flex justify-between items-center mb-2">
+            <Rotulo>Como foi seu dia de trabalho?</Rotulo>
+            <span className="text-sm font-medium text-indigo-500">{NIVEL_TRABALHO[registro.trabalhoClassificacao]}</span>
+          </div>
+          <input
+            type="range" min="0" max="4" step="1"
+            value={registro.trabalhoClassificacao}
+            onChange={(e) => atualizarRegistro((r) => ({ ...r, trabalhoClassificacao: parseInt(e.target.value) }))}
+            className="w-full accent-indigo-600"
+          />
+          <div className="flex justify-between text-[10px] mt-1 mb-2">
+            <Sutil>Improdutivo</Sutil>
+            <Sutil>Muito produtivo</Sutil>
+          </div>
+          <BarraPercentual valor={trabalhoPercent} />
+        </Cartao>
+
         <Cartao className="mt-3">
-          <p className="text-sm font-medium text-neutral-700 mb-2">O que você aprendeu hoje?</p>
-          <textarea placeholder="Compartilhe algo novo que aprendeu..." value={registro.notaAprendizado} onChange={(e) => atualizarRegistro((r) => ({ ...r, notaAprendizado: e.target.value }))} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm h-24 resize-none" />
+          <Rotulo className="mb-2">O que você aprendeu hoje?</Rotulo>
+          <CampoArea placeholder="Compartilhe algo novo que aprendeu..." value={registro.notaAprendizado} onChange={(e) => atualizarRegistro((r) => ({ ...r, notaAprendizado: e.target.value }))} className="h-24" />
+        </Cartao>
+
+        <Cartao className="mt-3">
+          <div className="flex items-center gap-2 mb-2">
+            <BookOpen size={15} className="text-indigo-500" />
+            <Rotulo>Leitura</Rotulo>
+          </div>
+          <Campo placeholder="Qual livro?" value={registro.leituraLivro} onChange={(e) => atualizarRegistro((r) => ({ ...r, leituraLivro: e.target.value }))} className="mb-2" />
+          <Campo placeholder="Quantas páginas leu hoje?" type="number" value={registro.leituraPaginas} onChange={(e) => atualizarRegistro((r) => ({ ...r, leituraPaginas: e.target.value }))} />
         </Cartao>
       </div>
 
       <div className="mt-8">
-        <h2 className="font-bold text-neutral-900 mb-3">💜 Relacionamento</h2>
+        <TituloSecao Icone={Heart}>Relacionamento</TituloSecao>
         <Cartao>
-          <p className="text-sm font-medium text-neutral-700 mb-2">Como foi seu dia com sua esposa?</p>
-          <textarea placeholder="Escreva livremente..." value={registro.notaRelacionamento} onChange={(e) => atualizarRegistro((r) => ({ ...r, notaRelacionamento: e.target.value }))} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm h-28 resize-none" />
+          <Rotulo className="mb-2">Esposa — como foi seu dia com ela?</Rotulo>
+          <CampoArea placeholder="Escreva livremente..." value={registro.notaRelacionamento} onChange={(e) => atualizarRegistro((r) => ({ ...r, notaRelacionamento: e.target.value }))} className="h-24" />
+        </Cartao>
+        <Cartao className="mt-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Users size={15} className="text-indigo-500" />
+            <Rotulo>Família — como foi com a família em geral?</Rotulo>
+          </div>
+          <CampoArea placeholder="Escreva livremente..." value={registro.notaFamilia} onChange={(e) => atualizarRegistro((r) => ({ ...r, notaFamilia: e.target.value }))} className="h-24" />
         </Cartao>
       </div>
     </>
-  );
-}
-
-function ChecklistItem({ label, checado, onClick, cor = "bg-neutral-900" }) {
-  return (
-    <button onClick={onClick} className={`w-full flex items-center justify-between p-4 rounded-2xl border transition ${checado ? `${cor} text-white border-transparent` : "border-neutral-100 bg-white hover:border-neutral-300"}`}>
-      <span className="flex items-center gap-3">
-        <span className={`w-5 h-5 rounded-full border flex items-center justify-center text-xs ${checado ? "border-white" : "border-neutral-300"}`}>{checado ? "✓" : ""}</span>
-        {label}
-      </span>
-    </button>
   );
 }
 
@@ -708,51 +932,97 @@ function TabMetas({ dadosPorDia, metas, atualizarMetas, registro }) {
   const metaInvest = parseFloat(metas.investimentoMensal) || 0;
   const progressoInvest = metaInvest > 0 ? Math.round((totalInvestidoMes / metaInvest) * 100) : 0;
   const diasComSonoOk = registrosDoMes.filter((r) => dormiuNaMeta(r.horaDormiu, metas.horaDormirMeta)).length;
+  const diasComAtividadeMes = registrosDoMes.filter((r) => r.atividadeFisica?.feita).length;
+  const metaAtividade = parseFloat(metas.atividadeFisicaMetaMes) || 0;
+  const progressoAtividade = metaAtividade > 0 ? Math.round((diasComAtividadeMes / metaAtividade) * 100) : 0;
   const pesoAtual = parseFloat(registro.peso) || null;
   const pesoMeta = parseFloat(metas.pesoMeta) || null;
+  const aguaHojeLitros = (registro.aguaCopos || 0) * 0.25;
+  const metaAgua = parseFloat(metas.aguaMetaLitros) || 0;
 
   return (
     <>
-      <h1 className="text-2xl font-bold text-neutral-900">Metas</h1>
-      <Hero className="bg-gradient-to-br from-amber-500 to-orange-500">
-        <p className="text-sm opacity-90 capitalize">{nomeMesCompleto(mesAtual)}</p>
-        <p className="text-xl font-bold mt-1">Acompanhe seu progresso</p>
-      </Hero>
+      <Titulo>Metas</Titulo>
+      <Painel Icone={Target} corIcone="text-indigo-400">
+        <Sutil className="!text-slate-400 text-sm capitalize">{nomeMesCompleto(mesAtual)}</Sutil>
+        <p className="text-lg font-semibold">Acompanhe seu progresso</p>
+      </Painel>
 
       <Cartao className="mt-6">
-        <p className="text-sm font-medium text-neutral-700 mb-2">💰 Meta de investimento mensal</p>
-        <input type="number" placeholder="ex: 500.00" value={metas.investimentoMensal} onChange={(e) => atualizarMetas((m) => ({ ...m, investimentoMensal: e.target.value }))} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm mb-3" />
+        <Rotulo className="mb-2">Meta pessoal</Rotulo>
+        <CampoArea placeholder="Escreva uma meta pessoal para você..." value={metas.metaPessoal} onChange={(e) => atualizarMetas((m) => ({ ...m, metaPessoal: e.target.value }))} className="h-20" />
+      </Cartao>
+
+      <Cartao className="mt-4">
+        <div className="flex items-center gap-2 mb-2">
+          <TrendingUp size={15} className="text-emerald-500" />
+          <Rotulo>Meta de investimento mensal</Rotulo>
+        </div>
+        <Campo type="number" placeholder="ex: 500.00" value={metas.investimentoMensal} onChange={(e) => atualizarMetas((m) => ({ ...m, investimentoMensal: e.target.value }))} className="mb-3" />
         <div className="flex justify-between text-sm mb-1">
-          <span className="text-neutral-500">R$ {totalInvestidoMes.toFixed(2).replace(".", ",")}</span>
-          <span className="text-neutral-400">meta R$ {metaInvest.toFixed(2).replace(".", ",")}</span>
+          <Sutil>R$ {totalInvestidoMes.toFixed(2).replace(".", ",")}</Sutil>
+          <Sutil>meta R$ {metaInvest.toFixed(2).replace(".", ",")}</Sutil>
         </div>
         <BarraPercentual valor={progressoInvest} cor="bg-emerald-500" />
-        <p className="text-xs text-neutral-400 mt-2">{progressoInvest}% da meta do mês</p>
+        <Sutil className="text-xs mt-2 block">{progressoInvest}% da meta do mês</Sutil>
       </Cartao>
 
       <Cartao className="mt-4">
-        <p className="text-sm font-medium text-neutral-700 mb-2">😴 Meta de horário de sono</p>
-        <input type="time" value={metas.horaDormirMeta} onChange={(e) => atualizarMetas((m) => ({ ...m, horaDormirMeta: e.target.value }))} className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm mb-2" />
-        <p className="text-xs text-neutral-400">Este mês: {diasComSonoOk} dia(s) dentro da meta</p>
+        <div className="flex items-center gap-2 mb-2">
+          <Dumbbell size={15} className="text-indigo-500" />
+          <Rotulo>Meta de atividade física no mês</Rotulo>
+        </div>
+        <Campo type="number" placeholder="ex: 12 (dias no mês)" value={metas.atividadeFisicaMetaMes} onChange={(e) => atualizarMetas((m) => ({ ...m, atividadeFisicaMetaMes: e.target.value }))} className="mb-3" />
+        <div className="flex justify-between text-sm mb-1">
+          <Sutil>{diasComAtividadeMes} dias</Sutil>
+          <Sutil>meta {metaAtividade || "—"} dias</Sutil>
+        </div>
+        <BarraPercentual valor={progressoAtividade} />
       </Cartao>
 
       <Cartao className="mt-4">
-        <p className="text-sm font-medium text-neutral-700 mb-2">⚖️ Meta de peso</p>
+        <div className="flex items-center gap-2 mb-2">
+          <Droplets size={15} className="text-indigo-500" />
+          <Rotulo>Meta de água por dia</Rotulo>
+        </div>
+        <Campo type="number" placeholder="ex: 2.5 (litros)" value={metas.aguaMetaLitros} onChange={(e) => atualizarMetas((m) => ({ ...m, aguaMetaLitros: e.target.value }))} className="mb-3" />
         <div className="flex justify-between text-sm">
-          <span className="text-neutral-500">Atual: {pesoAtual ?? "—"} kg</span>
-          <span className="text-neutral-400">Meta: {pesoMeta ?? "—"} kg</span>
+          <Sutil>Hoje: {aguaHojeLitros.toFixed(2)} L</Sutil>
+          <Sutil>meta {metaAgua || "—"} L</Sutil>
         </div>
       </Cartao>
 
       <Cartao className="mt-4">
-        <p className="text-sm font-medium text-neutral-700 mb-2">🎯 Meta de gasto diário</p>
-        <p className="text-sm text-neutral-500">R$ {(parseFloat(metas.gastoDiario) || 0).toFixed(2).replace(".", ",")} por dia — edite na aba Finanças</p>
+        <div className="flex items-center gap-2 mb-2">
+          <Moon size={15} className="text-indigo-500" />
+          <Rotulo>Meta de horário de sono</Rotulo>
+        </div>
+        <Campo type="time" value={metas.horaDormirMeta} onChange={(e) => atualizarMetas((m) => ({ ...m, horaDormirMeta: e.target.value }))} className="mb-2" />
+        <Sutil className="text-xs">Este mês: {diasComSonoOk} dia(s) dentro da meta</Sutil>
+      </Cartao>
+
+      <Cartao className="mt-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Scale size={15} className="text-indigo-500" />
+          <Rotulo>Meta de peso</Rotulo>
+        </div>
+        <Campo type="number" placeholder="ex: 75" value={metas.pesoMeta} onChange={(e) => atualizarMetas((m) => ({ ...m, pesoMeta: e.target.value }))} className="mb-2" />
+        <div className="flex justify-between text-sm">
+          <Sutil>Atual: {pesoAtual ?? "—"} kg</Sutil>
+          <Sutil>Meta: {pesoMeta ?? "—"} kg</Sutil>
+        </div>
+      </Cartao>
+
+      <Cartao className="mt-4">
+        <Rotulo className="mb-2">Meta de gasto diário</Rotulo>
+        <Sutil className="text-sm">R$ {(parseFloat(metas.gastoDiario) || 0).toFixed(2).replace(".", ",")} por dia — edite na aba Finanças</Sutil>
       </Cartao>
     </>
   );
 }
 
-function TabRelatorios({ dadosPorDia, metas, xpTotal }) {
+function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
+  const { escuro } = useTema();
   const [modo, setModo] = useState("mensal");
   const datasOrdenadas = Object.keys(dadosPorDia).sort().reverse();
 
@@ -764,6 +1034,15 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal }) {
   }
   const mesesOrdenados = Object.keys(meses).sort();
 
+  function caloriasDoDia(r) {
+    if (!r.atividadeFisica?.feita) return 0;
+    const peso = parseFloat(r.peso) || parseFloat(perfil.peso) || 75;
+    return calcularCalorias(r.atividadeFisica.tipo, r.atividadeFisica.minutos, peso);
+  }
+  function minutosDoDia(r) {
+    return r.atividadeFisica?.feita ? (parseFloat(r.atividadeFisica.minutos) || 0) : 0;
+  }
+
   const dadosGraficoMensal = mesesOrdenados.map((chave) => {
     const registros = meses[chave];
     const n = registros.length;
@@ -771,12 +1050,19 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal }) {
     const investidoTotal = registros.reduce((s, r) => s + (r.investimentos || []).reduce((a, i) => a + i.valor, 0), 0);
     const humorMedio = Math.round(registros.reduce((s, r) => s + (r.humorPercent || 0), 0) / n);
     const fisicaMedia = Math.round(registros.reduce((s, r) => s + (r.saudeFisicaPercent || 0), 0) / n);
-    return { mes: nomeMes(chave), Gasto: Math.round(gastoTotal), Investido: Math.round(investidoTotal), Humor: humorMedio, Fisica: fisicaMedia };
+    const minutosTotal = registros.reduce((s, r) => s + minutosDoDia(r), 0);
+    const caloriasTotal = registros.reduce((s, r) => s + caloriasDoDia(r), 0);
+    return { mes: nomeMes(chave), Gasto: Math.round(gastoTotal), Investido: Math.round(investidoTotal), Humor: humorMedio, Fisica: fisicaMedia, Minutos: minutosTotal, Calorias: caloriasTotal };
   });
+
+  const dadosPeso = Object.keys(dadosPorDia).sort().map((iso) => ({ data: formatarData(iso).slice(0, 5), peso: parseFloat(dadosPorDia[iso].peso) || null })).filter((d) => d.peso);
 
   const totalGastoGeral = Object.values(dadosPorDia).reduce((s, r) => s + (r.gastos || []).reduce((a, g) => a + g.valor, 0), 0);
   const totalInvestidoGeral = Object.values(dadosPorDia).reduce((s, r) => s + (r.investimentos || []).reduce((a, i) => a + i.valor, 0), 0);
+  const totalMinutosGeral = Object.values(dadosPorDia).reduce((s, r) => s + minutosDoDia(r), 0);
+  const totalCaloriasGeral = Object.values(dadosPorDia).reduce((s, r) => s + caloriasDoDia(r), 0);
   const melhorStreak = calcularMelhorStreak(dadosPorDia);
+  const pesoRecente = dadosPeso.length ? dadosPeso[dadosPeso.length - 1].peso : null;
 
   const contagemAtividades = {};
   for (const r of Object.values(dadosPorDia)) {
@@ -785,68 +1071,109 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal }) {
     }
   }
   const dadosPizza = Object.entries(contagemAtividades).map(([nome, valor]) => ({ nome, valor }));
+  const corGrade = escuro ? "#1e293b" : "#f1f5f9";
+  const corTexto = escuro ? "#64748b" : "#94a3b8";
+
+  const CARDS = [
+    { label: "XP total", valor: xpTotal, Icone: Award },
+    { label: "Melhor sequência", valor: `${melhorStreak}d`, Icone: Flame },
+    { label: "Tempo de atividade", valor: `${totalMinutosGeral} min`, Icone: Timer },
+    { label: "Calorias queimadas", valor: `${totalCaloriasGeral} kcal`, Icone: Zap },
+    { label: "Investido (total)", valor: `R$ ${totalInvestidoGeral.toFixed(0)}`, Icone: TrendingUp },
+    { label: "Gasto (total)", valor: `R$ ${totalGastoGeral.toFixed(0)}`, Icone: Wallet },
+  ];
 
   return (
     <>
-      <h1 className="text-2xl font-bold text-neutral-900">Relatórios</h1>
+      <Titulo>Relatórios</Titulo>
 
       <div className="grid grid-cols-2 gap-3 mt-6">
-        <div className="rounded-2xl bg-gradient-to-br from-violet-600 to-purple-600 text-white p-4">
-          <p className="text-xs opacity-80">XP total</p>
-          <p className="text-2xl font-bold mt-1">{xpTotal}</p>
-        </div>
-        <div className="rounded-2xl bg-gradient-to-br from-orange-500 to-red-500 text-white p-4">
-          <p className="text-xs opacity-80">Melhor sequência</p>
-          <p className="text-2xl font-bold mt-1">{melhorStreak}d</p>
-        </div>
-        <div className="rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-500 text-white p-4">
-          <p className="text-xs opacity-80">Investido (total)</p>
-          <p className="text-lg font-bold mt-1">R$ {totalInvestidoGeral.toFixed(0)}</p>
-        </div>
-        <div className="rounded-2xl bg-gradient-to-br from-rose-500 to-pink-500 text-white p-4">
-          <p className="text-xs opacity-80">Gasto (total)</p>
-          <p className="text-lg font-bold mt-1">R$ {totalGastoGeral.toFixed(0)}</p>
+        {CARDS.map((c) => (
+          <div key={c.label} className={`rounded-xl border p-4 ${escuro ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
+            <c.Icone size={15} className="text-indigo-500 mb-2" />
+            <Sutil className="text-xs">{c.label}</Sutil>
+            <p className={`text-lg font-semibold mt-0.5 ${escuro ? "text-white" : "text-slate-900"}`}>{c.valor}</p>
+          </div>
+        ))}
+        <div className={`rounded-xl border p-4 col-span-2 ${escuro ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
+          <Scale size={15} className="text-indigo-500 mb-2" />
+          <Sutil className="text-xs">Peso atual</Sutil>
+          <p className={`text-lg font-semibold mt-0.5 ${escuro ? "text-white" : "text-slate-900"}`}>{pesoRecente ?? "—"} kg</p>
         </div>
       </div>
 
       <div className="mt-6 flex gap-2">
-        <button onClick={() => setModo("mensal")} className={`flex-1 rounded-xl py-2 text-sm font-medium ${modo === "mensal" ? "bg-neutral-900 text-white" : "bg-white border border-neutral-200 text-neutral-500"}`}>Mensal</button>
-        <button onClick={() => setModo("diario")} className={`flex-1 rounded-xl py-2 text-sm font-medium ${modo === "diario" ? "bg-neutral-900 text-white" : "bg-white border border-neutral-200 text-neutral-500"}`}>Diário</button>
+        <button onClick={() => setModo("mensal")} className={`flex-1 rounded-lg py-2 text-sm font-medium transition active:opacity-80 ${modo === "mensal" ? "bg-indigo-600 text-white" : escuro ? "bg-slate-900 border border-slate-800 text-slate-400" : "bg-white border border-slate-200 text-slate-500"}`}>Mensal</button>
+        <button onClick={() => setModo("diario")} className={`flex-1 rounded-lg py-2 text-sm font-medium transition active:opacity-80 ${modo === "diario" ? "bg-indigo-600 text-white" : escuro ? "bg-slate-900 border border-slate-800 text-slate-400" : "bg-white border border-slate-200 text-slate-500"}`}>Diário</button>
       </div>
 
       {modo === "mensal" && (
         <>
+          {dadosPeso.length > 1 && (
+            <div className="mt-6">
+              <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Evolução do peso</h2>
+              <Cartao className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={dadosPeso}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={corGrade} />
+                    <XAxis dataKey="data" tick={{ fontSize: 10, fill: corTexto }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="peso" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </Cartao>
+            </div>
+          )}
+
           {dadosGraficoMensal.length > 1 && (
             <>
               <div className="mt-6">
-                <h2 className="font-bold text-neutral-900 mb-3 text-sm">Gasto x Investido por mês</h2>
+                <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Gasto x Investido por mês</h2>
                 <Cartao className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={dadosGraficoMensal}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                      <XAxis dataKey="mes" tick={{ fontSize: 11, fill: "#a3a3a3" }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 11, fill: "#a3a3a3" }} axisLine={false} tickLine={false} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={corGrade} />
+                      <XAxis dataKey="mes" tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} />
                       <Tooltip />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Bar dataKey="Gasto" fill="#e24b4a" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="Investido" fill="#1d9e75" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Gasto" fill="#e11d48" radius={[3, 3, 0, 0]} />
+                      <Bar dataKey="Investido" fill="#0d9488" radius={[3, 3, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </Cartao>
               </div>
 
               <div className="mt-6">
-                <h2 className="font-bold text-neutral-900 mb-3 text-sm">Evolução de humor e física</h2>
+                <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Atividade física: minutos x calorias</h2>
+                <Cartao className="h-52">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={dadosGraficoMensal}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={corGrade} />
+                      <XAxis dataKey="mes" tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} />
+                      <Tooltip />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Bar dataKey="Minutos" fill="#d97706" radius={[3, 3, 0, 0]} />
+                      <Bar dataKey="Calorias" fill="#6366f1" radius={[3, 3, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Cartao>
+              </div>
+
+              <div className="mt-6">
+                <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Evolução de humor e disposição</h2>
                 <Cartao className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={dadosGraficoMensal}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                      <XAxis dataKey="mes" tick={{ fontSize: 11, fill: "#a3a3a3" }} axisLine={false} tickLine={false} />
-                      <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "#a3a3a3" }} axisLine={false} tickLine={false} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={corGrade} />
+                      <XAxis dataKey="mes" tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} />
+                      <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} />
                       <Tooltip />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Line type="monotone" dataKey="Humor" stroke="#d4537e" strokeWidth={2} dot={{ r: 3 }} />
-                      <Line type="monotone" dataKey="Fisica" stroke="#7f77dd" strokeWidth={2} dot={{ r: 3 }} />
+                      <Line type="monotone" dataKey="Humor" stroke="#e11d48" strokeWidth={2} dot={{ r: 3 }} />
+                      <Line type="monotone" dataKey="Fisica" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 </Cartao>
@@ -856,11 +1183,11 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal }) {
 
           {dadosPizza.length > 0 && (
             <div className="mt-6">
-              <h2 className="font-bold text-neutral-900 mb-3 text-sm">Atividades mais praticadas</h2>
+              <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Atividades mais praticadas</h2>
               <Cartao className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={dadosPizza} dataKey="valor" nameKey="nome" cx="50%" cy="50%" outerRadius={70} label={{ fontSize: 11 }}>
+                    <Pie data={dadosPizza} dataKey="valor" nameKey="nome" cx="50%" cy="50%" outerRadius={70} label={{ fontSize: 11, fill: corTexto }}>
                       {dadosPizza.map((_, i) => <Cell key={i} fill={CORES_GRAFICO[i % CORES_GRAFICO.length]} />)}
                     </Pie>
                     <Tooltip />
@@ -872,7 +1199,7 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal }) {
           )}
 
           <div className="mt-6 space-y-3">
-            {mesesOrdenados.length === 0 && <p className="text-sm text-neutral-400">Ainda sem dados suficientes.</p>}
+            {mesesOrdenados.length === 0 && <Sutil className="text-sm">Ainda sem dados suficientes.</Sutil>}
             {[...mesesOrdenados].reverse().map((chave) => {
               const registros = meses[chave];
               const n = registros.length;
@@ -885,22 +1212,26 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal }) {
               const diasSonoOk = registros.filter((r) => dormiuNaMeta(r.horaDormiu, metas.horaDormirMeta)).length;
               const pesos = registros.map((r) => parseFloat(r.peso)).filter((p) => !isNaN(p));
               const pesoMedio = pesos.length ? (pesos.reduce((a, b) => a + b, 0) / pesos.length).toFixed(1) : "—";
+              const minutosTotal = registros.reduce((s, r) => s + minutosDoDia(r), 0);
+              const caloriasTotal = registros.reduce((s, r) => s + caloriasDoDia(r), 0);
               const metaGasto = parseFloat(metas.gastoDiario) || 0;
               const diasDentroOrcamento = metaGasto > 0 ? registros.filter((r) => (r.gastos || []).reduce((a, g) => a + g.valor, 0) <= metaGasto).length : null;
               return (
-                <Cartao key={chave} className="border-l-4 border-l-violet-500">
-                  <p className="font-bold text-neutral-900 text-sm capitalize mb-2">{nomeMesCompleto(chave)}</p>
-                  <div className="grid grid-cols-2 gap-y-1 text-xs text-neutral-500">
-                    <span>Dias registrados: {n}</span>
-                    <span>Dias sem fumar: {diasSemFumar}</span>
-                    <span>Atividade física: {diasAtividade}</span>
-                    <span>Sono dentro da meta: {diasSonoOk}</span>
-                    <span>Humor médio: {humorMedio}%</span>
-                    <span>Física média: {fisicaMedia}%</span>
-                    <span>Peso médio: {pesoMedio} kg</span>
-                    <span>Gasto total: R$ {gastoTotal.toFixed(2).replace(".", ",")}</span>
-                    <span>Investido total: R$ {investidoTotal.toFixed(2).replace(".", ",")}</span>
-                    {diasDentroOrcamento !== null && <span>Dentro do orçamento: {diasDentroOrcamento}</span>}
+                <Cartao key={chave} className="border-l-2 border-l-indigo-500">
+                  <p className={`font-semibold text-sm capitalize mb-2 ${escuro ? "text-white" : "text-slate-900"}`}>{nomeMesCompleto(chave)}</p>
+                  <div className="grid grid-cols-2 gap-y-1 text-xs">
+                    <Sutil>Dias registrados: {n}</Sutil>
+                    <Sutil>Dias sem fumar: {diasSemFumar}</Sutil>
+                    <Sutil>Atividade física: {diasAtividade} dias</Sutil>
+                    <Sutil>Minutos totais: {minutosTotal}</Sutil>
+                    <Sutil>Calorias: {caloriasTotal} kcal</Sutil>
+                    <Sutil>Sono dentro da meta: {diasSonoOk}</Sutil>
+                    <Sutil>Humor médio: {humorMedio}%</Sutil>
+                    <Sutil>Disposição média: {fisicaMedia}%</Sutil>
+                    <Sutil>Peso médio: {pesoMedio} kg</Sutil>
+                    <Sutil>Gasto total: R$ {gastoTotal.toFixed(2).replace(".", ",")}</Sutil>
+                    <Sutil>Investido total: R$ {investidoTotal.toFixed(2).replace(".", ",")}</Sutil>
+                    {diasDentroOrcamento !== null && <Sutil>Dentro do orçamento: {diasDentroOrcamento}</Sutil>}
                   </div>
                 </Cartao>
               );
@@ -911,27 +1242,29 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal }) {
 
       {modo === "diario" && (
         <div className="mt-6 space-y-3">
-          {datasOrdenadas.length === 0 && <p className="text-sm text-neutral-400">Ainda sem dias registrados.</p>}
+          {datasOrdenadas.length === 0 && <Sutil className="text-sm">Ainda sem dias registrados.</Sutil>}
           {datasOrdenadas.map((iso) => {
             const r = dadosPorDia[iso];
             const gastoTotal = (r.gastos || []).reduce((s, g) => s + g.valor, 0);
             const investidoTotal = (r.investimentos || []).reduce((s, i) => s + i.valor, 0);
             const kcalTotal = (r.refeicoes || []).reduce((s, x) => s + x.kcal, 0);
             return (
-              <Cartao key={iso} className="border-l-4 border-l-neutral-300">
+              <Cartao key={iso} className={`border-l-2 ${escuro ? "border-l-slate-700" : "border-l-slate-300"}`}>
                 <div className="flex justify-between items-center mb-2">
-                  <p className="font-bold text-neutral-900 text-sm">{formatarData(iso)}</p>
-                  <span className="text-xs">{r.fumei === false ? "🚭 não fumou" : r.fumei === true ? "🚬 fumou" : "— sem resposta"}</span>
+                  <p className={`font-semibold text-sm ${escuro ? "text-white" : "text-slate-900"}`}>{formatarData(iso)}</p>
+                  <span className="text-xs">{r.fumei === false ? "não fumou" : r.fumei === true ? "fumou" : "sem resposta"}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-y-1 text-xs text-neutral-500">
-                  <span>Mental: {r.humorPercent}%</span>
-                  <span>Física: {r.saudeFisicaPercent}%</span>
-                  <span>Atividade: {r.atividadeFisica?.feita ? r.atividadeFisica.tipo || "sim" : "não"}</span>
-                  <span>Sono: {r.horaDormiu || "—"}</span>
-                  <span>Gasto: R$ {gastoTotal.toFixed(2).replace(".", ",")}</span>
-                  <span>Investido: R$ {investidoTotal.toFixed(2).replace(".", ",")}</span>
-                  <span>Calorias: {kcalTotal} kcal</span>
-                  <span>Água: {((r.aguaCopos || 0) * 0.25).toFixed(2)} L</span>
+                <div className="grid grid-cols-2 gap-y-1 text-xs">
+                  <Sutil>Mental: {r.humorPercent}%</Sutil>
+                  <Sutil>Disposição: {r.saudeFisicaPercent}%</Sutil>
+                  <Sutil>Atividade: {r.atividadeFisica?.feita ? `${r.atividadeFisica.tipo || "sim"} (${r.atividadeFisica.minutos || 0}min)` : "não"}</Sutil>
+                  <Sutil>Calorias: {caloriasDoDia(r)} kcal</Sutil>
+                  <Sutil>Sono: {r.horaDormiu || "—"}</Sutil>
+                  <Sutil>Peso: {r.peso || "—"} kg</Sutil>
+                  <Sutil>Gasto: R$ {gastoTotal.toFixed(2).replace(".", ",")}</Sutil>
+                  <Sutil>Investido: R$ {investidoTotal.toFixed(2).replace(".", ",")}</Sutil>
+                  <Sutil>Alimentação: {kcalTotal} kcal</Sutil>
+                  <Sutil>Água: {((r.aguaCopos || 0) * 0.25).toFixed(2)} L</Sutil>
                 </div>
               </Cartao>
             );
