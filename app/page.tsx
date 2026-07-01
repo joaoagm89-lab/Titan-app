@@ -855,8 +855,12 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
           </div>
           <p className={`text-2xl font-semibold mb-3 ${escuro ? "text-white" : "text-slate-900"}`}>{totalCalorias} kcal</p>
           <div className="flex gap-2 mb-3">
-            <Campo placeholder="Alimento" value={novaRefeicao.nome} onChange={(e) => setNovaRefeicao({ ...novaRefeicao, nome: e.target.value })} className="flex-1" />
-            <Campo placeholder="kcal" type="number" value={novaRefeicao.kcal} onChange={(e) => setNovaRefeicao({ ...novaRefeicao, kcal: e.target.value })} className="w-20" />
+            <div className="flex-1 min-w-0">
+              <Campo placeholder="Alimento" value={novaRefeicao.nome} onChange={(e) => setNovaRefeicao({ ...novaRefeicao, nome: e.target.value })} />
+            </div>
+            <div className="w-20 shrink-0">
+              <Campo placeholder="kcal" type="number" value={novaRefeicao.kcal} onChange={(e) => setNovaRefeicao({ ...novaRefeicao, kcal: e.target.value })} />
+            </div>
           </div>
           <button onClick={adicionarRefeicao} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2 text-sm font-medium mb-3 transition active:opacity-80">Adicionar</button>
           <div className="space-y-2">
@@ -982,7 +986,9 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas }) {
         <Cartao>
           <p className="text-2xl font-semibold text-emerald-500 mb-3">R$ {totalInvestido.toFixed(2).replace(".", ",")}</p>
           <div className="flex gap-2">
-            <Campo placeholder="Quanto investiu?" type="number" value={novoInvest.valor} onChange={(e) => setNovoInvest({ valor: e.target.value })} className="flex-1" />
+            <div className="flex-1 min-w-0">
+              <Campo placeholder="Quanto investiu?" type="number" value={novoInvest.valor} onChange={(e) => setNovoInvest({ valor: e.target.value })} />
+            </div>
             <button onClick={adicionarInvestimento} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 text-sm font-medium transition active:opacity-80">Add</button>
           </div>
           <div className="space-y-2 mt-3">
