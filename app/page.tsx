@@ -259,6 +259,9 @@ export default function Home() {
   const [carregado, setCarregado] = useState(false);
   const [editandoPerfil, setEditandoPerfil] = useState(false);
   const [escuro, setEscuro] = useState(false);
+  const [verificouAcesso, setVerificouAcesso] = useState(false);
+  const [popupDia, setPopupDia] = useState(null);
+  const [popupMes, setPopupMes] = useState(null);
 
   useEffect(() => {
     const salvo = localStorage.getItem("titan-data-v3");
@@ -282,6 +285,19 @@ export default function Home() {
       setPerfil((p) => ({ ...p, dataInicioApp: hojeISO() }));
     }
   }, [carregado, perfil]);
+
+  useEffect(() => {
+    if (!carregado || !perfil || verificouAcesso) return;
+    setVerificouAcesso(true);
+    const hoje = hojeISO();
+    const ultimo = perfil.ultimoAcesso;
+    if (ultimo && ultimo !== hoje) {
+      const regAnterior = dadosPorDia[ultimo];
+      if (regAnterior) setPopupDia({ data: ultimo, registro: regAnterior });
+      if (mesDoIso(ultimo) !== mesDoIso(hoje)) setPopupMes({ mesIso: mesDoIso(ultimo) });
+    }
+    if (ultimo !== hoje) setPerfil((p) => ({ ...p, ultimoAcesso: hoje }));
+  }, [carregado, perfil, verificouAcesso, dadosPorDia]);
 
   const temaValue = { escuro, alternar: () => setEscuro((e) => !e) };
 
@@ -368,6 +384,23 @@ export default function Home() {
 
         {editandoPerfil && (
           <EditarPerfilModal perfil={perfil} onSalvar={(p) => { setPerfil(p); setEditandoPerfil(false); }} onCancelar={() => setEditandoPerfil(false)} />
+        )}
+
+        {popupDia && (
+          <PopupResumoDia
+            data={popupDia.data}
+            registro={popupDia.registro}
+            metas={metas}
+            onFechar={() => setPopupDia(null)}
+          />
+        )}
+        {!popupDia && popupMes && (
+          <PopupResumoMes
+            mesIso={popupMes.mesIso}
+            dadosPorDia={dadosPorDia}
+            metas={metas}
+            onFechar={() => setPopupMes(null)}
+          />
         )}
 
         <nav className={`fixed bottom-0 left-0 right-0 border-t ${escuro ? "bg-slate-950/95 border-slate-800" : "bg-white/95 border-slate-200"} backdrop-blur-md`}>
@@ -512,6 +545,115 @@ function Onboarding({ onConcluir }) {
         )}
       </div>
     </main>
+  );
+}
+
+function LinhaResultado({ Icone, label, ok }) {
+  return (
+    <div className="flex items-center justify-between py-2">
+      <div className="flex items-center gap-2">
+        <Icone size={15} className={ok ? "text-emerald-400" : "text-slate-500"} />
+        <span className={`text-sm ${ok ? "text-slate-200" : "text-slate-500"}`}>{label}</span>
+      </div>
+      <span className={`text-xs font-medium ${ok ? "text-emerald-400" : "text-slate-500"}`}>{ok ? "Feito" : "Não"}</span>
+    </div>
+  );
+}
+
+function PopupResumoDia({ data, registro, metas, onFechar }) {
+  const naoFumou = registro.fumei === false;
+  const atividade = !!registro.atividadeFisica?.feita;
+  const sono = dormiuNaMeta(registro.horaDormiu, metas.horaDormirMeta);
+  const metaGasto = parseFloat(metas.gastoDiario) || 0;
+  const gastoTotal = (registro.gastos || []).reduce((s, g) => s + g.valor, 0);
+  const dentroOrcamento = metaGasto > 0 ? gastoTotal <= metaGasto : null;
+
+  const itens = [naoFumou, atividade, sono, dentroOrcamento === true].filter((v) => v === true).length;
+  const totalItens = [true, true, true, dentroOrcamento !== null].filter(Boolean).length;
+  const boa = totalItens > 0 && itens / totalItens >= 0.5;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center px-6 z-50">
+      <div className="max-w-sm w-full rounded-xl p-6 border bg-slate-900 border-slate-800">
+        <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center mb-3">
+          <Award size={18} className={boa ? "text-emerald-400" : "text-indigo-400"} />
+        </div>
+        <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Resumo do dia {formatarData(data)}</p>
+        <h3 className="text-lg font-semibold text-white mb-4">
+          {boa ? "Parabéns pelo seu dia" : "Vamos com tudo hoje"}
+        </h3>
+
+        <div className="divide-y divide-slate-800">
+          <LinhaResultado Icone={Cigarette} label="Não fumou" ok={naoFumou} />
+          <LinhaResultado Icone={Dumbbell} label="Atividade física" ok={atividade} />
+          <LinhaResultado Icone={Moon} label="Sono dentro da meta" ok={sono} />
+          {dentroOrcamento !== null && <LinhaResultado Icone={Wallet} label="Dentro do orçamento" ok={dentroOrcamento} />}
+        </div>
+
+        <p className="text-sm text-slate-400 mt-4">
+          {boa
+            ? "Você fechou o dia bem. Continue nesse ritmo."
+            : "Nem todo dia é perfeito — o que importa é seguir tentando amanhã."}
+        </p>
+
+        <button onClick={onFechar} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2.5 text-sm font-medium mt-5 transition active:opacity-80">
+          Fechar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PopupResumoMes({ mesIso, dadosPorDia, metas, onFechar }) {
+  const registros = Object.entries(dadosPorDia).filter(([iso]) => mesDoIso(iso) === mesIso).map(([, r]) => r);
+  const n = registros.length;
+  const investidoTotal = registros.reduce((s, r) => s + (r.investimentos || []).reduce((a, i) => a + i.valor, 0), 0);
+  const metaInvest = parseFloat(metas.investimentoMensal) || 0;
+  const bateuInvest = metaInvest > 0 ? investidoTotal >= metaInvest : null;
+  const diasAtividade = registros.filter((r) => r.atividadeFisica?.feita).length;
+  const metaAtividade = parseFloat(metas.atividadeFisicaMetaMes) || 0;
+  const bateuAtividade = metaAtividade > 0 ? diasAtividade >= metaAtividade : null;
+  const diasSemFumar = registros.filter((r) => r.fumei === false).length;
+
+  const metasAvaliadas = [bateuInvest, bateuAtividade].filter((v) => v !== null);
+  const bateuAlguma = metasAvaliadas.filter(Boolean).length;
+  const boa = metasAvaliadas.length === 0 || bateuAlguma / metasAvaliadas.length >= 0.5;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center px-6 z-50">
+      <div className="max-w-sm w-full rounded-xl p-6 border bg-slate-900 border-slate-800">
+        <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center mb-3">
+          <TrendingUp size={18} className={boa ? "text-emerald-400" : "text-indigo-400"} />
+        </div>
+        <p className="text-xs text-slate-400 uppercase tracking-wide mb-1 capitalize">Resumo de {nomeMesCompleto(mesIso)}</p>
+        <h3 className="text-lg font-semibold text-white mb-4">
+          {boa ? "Bom mês! Continue assim" : "Mês desafiador — o próximo é uma nova chance"}
+        </h3>
+
+        <div className="divide-y divide-slate-800">
+          <div className="flex items-center justify-between py-2">
+            <span className="text-sm text-slate-300">Dias registrados</span>
+            <span className="text-sm font-medium text-white">{n}</span>
+          </div>
+          <div className="flex items-center justify-between py-2">
+            <span className="text-sm text-slate-300">Dias sem fumar</span>
+            <span className="text-sm font-medium text-white">{diasSemFumar}</span>
+          </div>
+          <div className="flex items-center justify-between py-2">
+            <span className="text-sm text-slate-300">Investido no mês</span>
+            <span className={`text-sm font-medium ${bateuInvest ? "text-emerald-400" : "text-white"}`}>R$ {investidoTotal.toFixed(2).replace(".", ",")}</span>
+          </div>
+          <div className="flex items-center justify-between py-2">
+            <span className="text-sm text-slate-300">Dias com atividade física</span>
+            <span className={`text-sm font-medium ${bateuAtividade ? "text-emerald-400" : "text-white"}`}>{diasAtividade}</span>
+          </div>
+        </div>
+
+        <button onClick={onFechar} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2.5 text-sm font-medium mt-5 transition active:opacity-80">
+          Fechar
+        </button>
+      </div>
+    </div>
   );
 }
 
