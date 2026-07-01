@@ -5,11 +5,12 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid,
 } from "recharts";
+import { supabase } from "./supabaseClient";
 import {
   Activity, Brain, Wallet, Compass, Target, BarChart3,
   Sun, Moon, ChevronLeft, ChevronRight, Pencil, Cigarette, CigaretteOff,
   Dumbbell, Droplets, Scale, UtensilsCrossed, TrendingUp, Briefcase,
-  BookOpen, Heart, Users, Flame, Timer, Zap, PiggyBank, Award,
+  BookOpen, Heart, Users, Flame, Timer, Zap, PiggyBank, Award, LogOut,
 } from "lucide-react";
 
 const TIPOS_ATIVIDADE = [
@@ -262,23 +263,52 @@ export default function Home() {
   const [verificouAcesso, setVerificouAcesso] = useState(false);
   const [popupDia, setPopupDia] = useState(null);
   const [popupMes, setPopupMes] = useState(null);
+  const [sessao, setSessao] = useState(null);
+  const [carregandoAuth, setCarregandoAuth] = useState(true);
+  const [dadosLocaisDetectados, setDadosLocaisDetectados] = useState(null);
 
   useEffect(() => {
-    const salvo = localStorage.getItem("titan-data-v3");
-    if (salvo) {
-      const d = JSON.parse(salvo);
-      setPerfil(d.perfil ?? null);
-      setDadosPorDia(d.dadosPorDia ?? {});
-      setMetas({ ...METAS_PADRAO, ...(d.metas ?? {}) });
-      setEscuro(d.escuro ?? false);
-    }
-    setCarregado(true);
+    supabase.auth.getSession().then(({ data }) => {
+      setSessao(data.session);
+      setCarregandoAuth(false);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSessao(session);
+    });
+    return () => listener.subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (!carregado) return;
-    localStorage.setItem("titan-data-v3", JSON.stringify({ perfil, dadosPorDia, metas, escuro }));
-  }, [perfil, dadosPorDia, metas, escuro, carregado]);
+    if (!sessao) return;
+    (async () => {
+      const { data } = await supabase
+        .from("titan_dados")
+        .select("dados")
+        .eq("user_id", sessao.user.id)
+        .maybeSingle();
+      if (data?.dados) {
+        const d = data.dados;
+        setPerfil(d.perfil ?? null);
+        setDadosPorDia(d.dadosPorDia ?? {});
+        setMetas({ ...METAS_PADRAO, ...(d.metas ?? {}) });
+        setEscuro(d.escuro ?? false);
+      } else {
+        const legado = localStorage.getItem("titan-data-v3");
+        if (legado) {
+          try { setDadosLocaisDetectados(JSON.parse(legado)); } catch {}
+        }
+      }
+      setCarregado(true);
+    })();
+  }, [sessao]);
+
+  useEffect(() => {
+    if (!carregado || !sessao) return;
+    supabase
+      .from("titan_dados")
+      .upsert({ user_id: sessao.user.id, dados: { perfil, dadosPorDia, metas, escuro }, updated_at: new Date().toISOString() })
+      .then(({ error }) => { if (error) console.error("Erro ao salvar no Supabase:", error); });
+  }, [perfil, dadosPorDia, metas, escuro, carregado, sessao]);
 
   useEffect(() => {
     if (carregado && perfil && !perfil.dataInicioApp) {
@@ -301,7 +331,36 @@ export default function Home() {
 
   const temaValue = { escuro, alternar: () => setEscuro((e) => !e) };
 
+  if (carregandoAuth) return null;
+
+  if (!sessao) {
+    return (
+      <TemaContext.Provider value={temaValue}>
+        <TelaLogin />
+      </TemaContext.Provider>
+    );
+  }
+
   if (!carregado) return null;
+
+  if (!perfil && dadosLocaisDetectados) {
+    return (
+      <TemaContext.Provider value={temaValue}>
+        <ImportarDadosLegado
+          onImportar={() => {
+            const d = dadosLocaisDetectados;
+            setPerfil(d.perfil ?? null);
+            setDadosPorDia(d.dadosPorDia ?? {});
+            setMetas({ ...METAS_PADRAO, ...(d.metas ?? {}) });
+            setEscuro(d.escuro ?? false);
+            setDadosLocaisDetectados(null);
+          }}
+          onIgnorar={() => setDadosLocaisDetectados(null)}
+        />
+      </TemaContext.Provider>
+    );
+  }
+
   if (!perfil) {
     return (
       <TemaContext.Provider value={temaValue}>
@@ -657,6 +716,88 @@ function PopupResumoMes({ mesIso, dadosPorDia, metas, onFechar }) {
   );
 }
 
+function traduzErro(msg) {
+  if (!msg) return "Algo deu errado. Tenta de novo.";
+  if (msg.includes("Invalid login credentials")) return "E-mail ou senha incorretos.";
+  if (msg.includes("User already registered")) return "Já existe uma conta com esse e-mail. Tenta entrar.";
+  if (msg.includes("Password should be")) return "A senha precisa ter pelo menos 6 caracteres.";
+  if (msg.includes("Unable to validate email")) return "Digite um e-mail válido.";
+  return msg;
+}
+
+function TelaLogin() {
+  const { escuro, alternar } = useTema();
+  const [modo, setModo] = useState("entrar");
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState("");
+  const [mensagem, setMensagem] = useState("");
+
+  async function enviar() {
+    setErro("");
+    setMensagem("");
+    if (!email || !senha) { setErro("Preenche e-mail e senha."); return; }
+    setCarregando(true);
+    if (modo === "entrar") {
+      const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
+      if (error) setErro(traduzErro(error.message));
+    } else {
+      const { error } = await supabase.auth.signUp({ email, password: senha });
+      if (error) setErro(traduzErro(error.message));
+      else setMensagem("Conta criada! Já pode entrar normalmente.");
+    }
+    setCarregando(false);
+  }
+
+  return (
+    <main className={`min-h-screen flex items-center justify-center px-6 ${escuro ? "bg-slate-950" : "bg-slate-100"}`}>
+      <button onClick={alternar} className={`absolute top-6 right-6 w-9 h-9 rounded-lg flex items-center justify-center ${escuro ? "bg-slate-900 text-slate-400" : "bg-white text-slate-500 border border-slate-200"}`}>
+        {escuro ? <Sun size={16} /> : <Moon size={16} />}
+      </button>
+      <div className={`max-w-sm w-full rounded-xl p-6 border ${escuro ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
+        <Titulo>Titan</Titulo>
+        <Sutil className="text-sm block mt-1 mb-6">Entre para acessar seus dados, de qualquer aparelho.</Sutil>
+
+        <div className="flex gap-2 mb-4">
+          <button onClick={() => setModo("entrar")} className={`flex-1 rounded-lg py-2 text-sm font-medium transition ${modo === "entrar" ? "bg-indigo-600 text-white" : escuro ? "border border-slate-700 text-slate-400" : "border border-slate-200 text-slate-500"}`}>Entrar</button>
+          <button onClick={() => setModo("cadastro")} className={`flex-1 rounded-lg py-2 text-sm font-medium transition ${modo === "cadastro" ? "bg-indigo-600 text-white" : escuro ? "border border-slate-700 text-slate-400" : "border border-slate-200 text-slate-500"}`}>Criar conta</button>
+        </div>
+
+        <div className="space-y-3">
+          <Campo placeholder="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Campo placeholder="Senha" type="password" value={senha} onChange={(e) => setSenha(e.target.value)} />
+        </div>
+
+        {erro && <p className="text-xs text-rose-500 mt-2">{erro}</p>}
+        {mensagem && <p className="text-xs text-emerald-500 mt-2">{mensagem}</p>}
+
+        <button onClick={enviar} disabled={carregando} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-3 text-sm font-medium mt-5 transition active:opacity-80 disabled:opacity-60">
+          {carregando ? "Aguarde..." : modo === "entrar" ? "Entrar" : "Criar conta"}
+        </button>
+      </div>
+    </main>
+  );
+}
+
+function ImportarDadosLegado({ onImportar, onIgnorar }) {
+  const { escuro } = useTema();
+  return (
+    <main className={`min-h-screen flex items-center justify-center px-6 ${escuro ? "bg-slate-950" : "bg-slate-100"}`}>
+      <div className={`max-w-sm w-full rounded-xl p-6 border ${escuro ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
+        <Titulo>Encontramos dados neste navegador</Titulo>
+        <Sutil className="text-sm block mt-2 mb-5">
+          Antes de usar login, você já tinha registros salvos aqui. Quer importar esses dados pra sua conta agora, ou começar do zero?
+        </Sutil>
+        <div className="flex flex-col gap-2">
+          <button onClick={onImportar} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-3 text-sm font-medium transition active:opacity-80">Importar meus dados</button>
+          <button onClick={onIgnorar} className={`w-full rounded-lg py-3 text-sm font-medium transition border ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-700"}`}>Começar do zero</button>
+        </div>
+      </div>
+    </main>
+  );
+}
+
 function EditarPerfilModal({ perfil, onSalvar, onCancelar }) {
   const { escuro } = useTema();
   const [form, setForm] = useState({ acompanharCigarro: true, ...perfil });
@@ -682,6 +823,9 @@ function EditarPerfilModal({ perfil, onSalvar, onCancelar }) {
           <button onClick={onCancelar} className={`flex-1 rounded-lg py-2 text-sm transition active:opacity-70 border ${escuro ? "border-slate-700 text-slate-200" : "border-slate-200 text-slate-700"}`}>Cancelar</button>
           <button onClick={() => onSalvar(form)} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2 text-sm font-medium transition active:opacity-80">Salvar</button>
         </div>
+        <button onClick={() => supabase.auth.signOut()} className="w-full flex items-center justify-center gap-2 text-sm text-rose-500 mt-4 py-2">
+          <LogOut size={14} /> Sair da conta
+        </button>
       </div>
     </div>
   );
