@@ -2068,7 +2068,9 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
     if (!meses[chave]) meses[chave] = [];
     meses[chave].push(dadosPorDia[iso]);
   }
-  const mesesOrdenados = Object.keys(meses).sort();
+  const gastosFixosPorMesTop = metas.gastosFixosPorMes && typeof metas.gastosFixosPorMes === "object" && !Array.isArray(metas.gastosFixosPorMes) ? metas.gastosFixosPorMes : {};
+  const mesesComFixos = Object.keys(gastosFixosPorMesTop).filter((m) => Array.isArray(gastosFixosPorMesTop[m]) && gastosFixosPorMesTop[m].length > 0);
+  const mesesOrdenados = Array.from(new Set([...Object.keys(meses), ...mesesComFixos])).sort();
 
   function caloriasDoDia(r) {
     if (!r.atividadeFisica?.feita) return 0;
@@ -2087,12 +2089,12 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
   }
 
   const dadosGraficoMensal = mesesOrdenados.map((chave) => {
-    const registros = meses[chave];
+    const registros = meses[chave] || [];
     const n = registros.length;
     const gastoTotal = registros.reduce((s, r) => s + (r.gastos || []).reduce((a, g) => a + g.valor, 0), 0);
     const investidoTotal = registros.reduce((s, r) => s + (r.investimentos || []).reduce((a, i) => a + i.valor, 0), 0);
-    const humorMedio = Math.round(registros.reduce((s, r) => s + (r.humorPercent || 0), 0) / n);
-    const fisicaMedia = Math.round(registros.reduce((s, r) => s + (r.saudeFisicaPercent || 0), 0) / n);
+    const humorMedio = n ? Math.round(registros.reduce((s, r) => s + (r.humorPercent || 0), 0) / n) : 0;
+    const fisicaMedia = n ? Math.round(registros.reduce((s, r) => s + (r.saudeFisicaPercent || 0), 0) / n) : 0;
     const minutosTotal = registros.reduce((s, r) => s + minutosDoDia(r), 0);
     const caloriasTotal = registros.reduce((s, r) => s + caloriasDoDia(r), 0);
     return { mes: nomeMes(chave), Gasto: Math.round(gastoTotal), Investido: Math.round(investidoTotal), Fixo: Math.round(fixosDoMes(chave)), Humor: humorMedio, Fisica: fisicaMedia, Minutos: minutosTotal, Calorias: caloriasTotal };
@@ -2272,12 +2274,12 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
           <div className="mt-6 space-y-3">
             {mesesOrdenados.length === 0 && <Sutil className="text-sm">Ainda sem dados suficientes.</Sutil>}
             {[...mesesOrdenados].reverse().map((chave) => {
-              const registros = meses[chave];
+              const registros = meses[chave] || [];
               const n = registros.length;
               const gastoTotal = registros.reduce((s, r) => s + (r.gastos || []).reduce((a, g) => a + g.valor, 0), 0);
               const investidoTotal = registros.reduce((s, r) => s + (r.investimentos || []).reduce((a, i) => a + i.valor, 0), 0);
-              const humorMedio = Math.round(registros.reduce((s, r) => s + (r.humorPercent || 0), 0) / n);
-              const fisicaMedia = Math.round(registros.reduce((s, r) => s + (r.saudeFisicaPercent || 0), 0) / n);
+              const humorMedio = n ? Math.round(registros.reduce((s, r) => s + (r.humorPercent || 0), 0) / n) : 0;
+              const fisicaMedia = n ? Math.round(registros.reduce((s, r) => s + (r.saudeFisicaPercent || 0), 0) / n) : 0;
               const diasSemFumar = registros.filter((r) => r.fumei === false).length;
               const diasAtividade = registros.filter((r) => r.atividadeFisica?.feita).length;
               const diasSonoOk = registros.filter((r) => dormiuNaMeta(r.horaDormiu, metas.horaDormirMeta)).length;
