@@ -88,7 +88,7 @@ const METAS_PADRAO = {
   metaPessoal: "",
   atividadeFisicaMetaMes: "",
   aguaMetaLitros: "",
-  gastosFixos: {},
+  gastosFixos: [],
 };
 
 const GASTOS_FIXOS_PADRAO = [
@@ -1468,23 +1468,24 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas }) {
   const { escuro } = useTema();
   const [novoGasto, setNovoGasto] = useState({ desc: "", valor: "", categoria: "" });
   const [novoInvest, setNovoInvest] = useState({ valor: "" });
+  const [novoFixo, setNovoFixo] = useState({ nome: "", valor: "" });
   const totalGasto = registro.gastos.reduce((s, g) => s + g.valor, 0);
   const totalInvestido = registro.investimentos.reduce((s, i) => s + i.valor, 0);
   const meta = parseFloat(metas.gastoDiario) || 0;
   const dentroDaMeta = meta > 0 ? totalGasto <= meta : null;
-  const gastosFixos = metas.gastosFixos || {};
-  const totalFixos = Object.values(gastosFixos).reduce((s, v) => s + (parseFloat(v) || 0), 0);
+  const gastosFixos = metas.gastosFixos || [];
+  const totalFixos = gastosFixos.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0);
 
-  function toggleGastoFixo(nome) {
-    atualizarMetas((m) => {
-      const novo = { ...(m.gastosFixos || {}) };
-      if (nome in novo) delete novo[nome];
-      else novo[nome] = "";
-      return { ...m, gastosFixos: novo };
-    });
+  function adicionarGastoFixo() {
+    if (!novoFixo.nome || !novoFixo.valor) return;
+    atualizarMetas((m) => ({
+      ...m,
+      gastosFixos: [...(m.gastosFixos || []), { id: Date.now(), nome: novoFixo.nome, valor: novoFixo.valor }],
+    }));
+    setNovoFixo({ nome: "", valor: "" });
   }
-  function atualizarValorFixo(nome, valor) {
-    atualizarMetas((m) => ({ ...m, gastosFixos: { ...(m.gastosFixos || {}), [nome]: valor } }));
+  function removerGastoFixo(id) {
+    atualizarMetas((m) => ({ ...m, gastosFixos: (m.gastosFixos || []).filter((g) => g.id !== id) }));
   }
 
   function adicionarGasto() {
@@ -1588,28 +1589,31 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas }) {
             <span className={`text-2xl font-semibold ${escuro ? "text-white" : "text-slate-900"}`}>R$ {totalFixos.toFixed(2).replace(".", ",")}</span>
             <span className="text-sm text-slate-400"> /mês</span>
           </p>
+
+          <div className="flex gap-2 mb-2">
+            <div className="flex-[1.4] min-w-0">
+              <CampoSelect value={novoFixo.nome} onChange={(e) => setNovoFixo({ ...novoFixo, nome: e.target.value })}>
+                <option value="">Qual gasto?</option>
+                {GASTOS_FIXOS_PADRAO.map((nome) => <option key={nome} value={nome}>{nome}</option>)}
+              </CampoSelect>
+            </div>
+            <div className="flex-1 min-w-0">
+              <Campo type="number" placeholder="Valor" value={novoFixo.valor} onChange={(e) => setNovoFixo({ ...novoFixo, valor: e.target.value })} />
+            </div>
+          </div>
+          <button onClick={adicionarGastoFixo} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2 text-sm font-medium mb-3 transition active:opacity-80">Adicionar</button>
+
+          {gastosFixos.length === 0 && <Sutil className="text-sm">Nenhum gasto fixo cadastrado ainda.</Sutil>}
           <div className="space-y-2">
-            {GASTOS_FIXOS_PADRAO.map((nome) => {
-              const selecionado = nome in gastosFixos;
-              return (
-                <div key={nome} className={`rounded-lg border p-3 ${escuro ? "border-slate-800" : "border-slate-100"}`}>
-                  <button onClick={() => toggleGastoFixo(nome)} className="w-full flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <span className={`w-5 h-5 rounded-md border flex items-center justify-center text-xs shrink-0 ${selecionado ? "bg-indigo-600 border-indigo-600 text-white" : escuro ? "border-slate-600" : "border-slate-300"}`}>
-                        {selecionado ? "✓" : ""}
-                      </span>
-                      <span className={`text-sm ${escuro ? "text-slate-200" : "text-slate-700"}`}>{nome}</span>
-                    </span>
-                    {selecionado && gastosFixos[nome] && (
-                      <span className="text-sm font-medium text-slate-400">R$ {parseFloat(gastosFixos[nome] || 0).toFixed(2).replace(".", ",")}</span>
-                    )}
-                  </button>
-                  {selecionado && (
-                    <Campo type="number" placeholder="Valor mensal" value={gastosFixos[nome]} onChange={(e) => atualizarValorFixo(nome, e.target.value)} className="mt-2" />
-                  )}
+            {gastosFixos.map((g) => (
+              <div key={g.id} className="flex items-center justify-between text-sm">
+                <span className={escuro ? "text-slate-200" : "text-slate-700"}>{g.nome}</span>
+                <div className="flex items-center gap-3">
+                  <span className={`font-medium ${escuro ? "text-white" : "text-slate-900"}`}>R$ {parseFloat(g.valor || 0).toFixed(2).replace(".", ",")}</span>
+                  <button onClick={() => removerGastoFixo(g.id)} className="text-slate-400">✕</button>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         </Cartao>
       </div>
