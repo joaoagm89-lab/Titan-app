@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect, useRef, createContext, useContext } from "react";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid,
@@ -8,7 +8,7 @@ import {
 import { supabase } from "./supabaseClient";
 import {
   Activity, Brain, Wallet, Compass, Target, BarChart3,
-  Sun, Moon, ChevronLeft, ChevronRight, Pencil, Cigarette, CigaretteOff,
+  Sun, Moon, ChevronLeft, ChevronRight, Pencil, Cigarette, CigaretteOff, CalendarDays, Plus,
   Dumbbell, Droplets, Scale, UtensilsCrossed, TrendingUp, Briefcase,
   BookOpen, Heart, Users, Flame, Timer, Zap, PiggyBank, Award, LogOut, Wine,
 } from "lucide-react";
@@ -74,6 +74,7 @@ const REGISTRO_PADRAO = {
   leituraPaginas: "",
   notasRelacionamento: [],
   notasFamilia: [],
+  tarefas: [],
 };
 
 const TIPOS_BEBIDA = ["Cerveja", "Vinho", "Whisky/Destilado", "Vodka", "Cachaça", "Drink", "Outro"];
@@ -110,6 +111,21 @@ function nomeMesCompleto(mesIso) {
   const nomes = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
   return `${nomes[parseInt(m) - 1]} de ${y}`;
 }
+function somarMes(mesIso, delta) {
+  const [y, m] = mesIso.split("-").map(Number);
+  const dt = new Date(y, m - 1 + delta, 1);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
+}
+function celulasDoMes(mesIso) {
+  const [y, m] = mesIso.split("-").map(Number);
+  const ultimoDia = new Date(y, m, 0).getDate();
+  const diaSemanaInicio = new Date(y, m - 1, 1).getDay();
+  const celulas = [];
+  for (let i = 0; i < diaSemanaInicio; i++) celulas.push(null);
+  for (let d = 1; d <= ultimoDia; d++) celulas.push(`${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
+  return celulas;
+}
+
 function calcularNivel(xp) {
   let atual = NIVEIS[0];
   for (const n of NIVEIS) if (xp >= n.xpNecessario) atual = n;
@@ -304,13 +320,16 @@ function BarraPercentual({ valor, cor = "bg-indigo-600" }) {
 }
 function Painel({ Icone, corIcone = "text-indigo-400", children, className = "" }) {
   return (
-    <div className={`relative mt-6 rounded-xl bg-slate-900 text-white p-6 border border-slate-800 ${className}`}>
+    <div className={`relative mt-6 rounded-xl bg-slate-900 text-white p-6 border border-slate-800 overflow-hidden ${className}`}>
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="animate-brilhoPainel absolute top-0 left-0 h-full w-1/3 bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+      </div>
       {Icone && (
-        <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center mb-3">
+        <div className="relative w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center mb-3">
           <Icone size={16} className={corIcone} />
         </div>
       )}
-      {children}
+      <div className="relative">{children}</div>
     </div>
   );
 }
@@ -328,8 +347,65 @@ function BotaoToggle({ ativo, onClick, children, corAtiva }) {
   );
 }
 
+function NumeroAnimado({ valor, className = "" }) {
+  const [exibido, setExibido] = useState(valor);
+  const anterior = useRef(valor);
+
+  useEffect(() => {
+    const de = anterior.current;
+    const ate = valor;
+    if (de === ate) return;
+    const inicio = performance.now();
+    const duracao = 500;
+    function passo(agora) {
+      const progresso = Math.min(1, (agora - inicio) / duracao);
+      setExibido(Math.round(de + (ate - de) * progresso));
+      if (progresso < 1) requestAnimationFrame(passo);
+      else anterior.current = ate;
+    }
+    requestAnimationFrame(passo);
+  }, [valor]);
+
+  return <span className={className}>{exibido}</span>;
+}
+
+function Confete() {
+  const cores = ["#6366f1", "#f472b6", "#fbbf24", "#34d399", "#60a5fa"];
+  const [particulas] = useState(() =>
+    Array.from({ length: 26 }, (_, i) => ({
+      id: i,
+      esquerda: Math.random() * 100,
+      atraso: Math.random() * 0.6,
+      duracao: 1.6 + Math.random() * 0.8,
+      cor: cores[i % cores.length],
+      tamanho: 5 + Math.random() * 5,
+      rotacao: Math.random() * 360,
+    }))
+  );
+  return (
+    <div className="fixed inset-0 pointer-events-none overflow-hidden z-[60]">
+      {particulas.map((p) => (
+        <span
+          key={p.id}
+          className="absolute top-[-10px] rounded-sm animate-confeteCair"
+          style={{
+            left: `${p.esquerda}%`,
+            width: p.tamanho,
+            height: p.tamanho * 1.6,
+            backgroundColor: p.cor,
+            animationDelay: `${p.atraso}s`,
+            animationDuration: `${p.duracao}s`,
+            transform: `rotate(${p.rotacao}deg)`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function Home() {
   const [perfil, setPerfil] = useState(null);
+  const touchStartX = useRef(null);
   const [dadosPorDia, setDadosPorDia] = useState({});
   const [metas, setMetas] = useState(METAS_PADRAO);
   const [dataSelecionada, setDataSelecionada] = useState(hojeISO());
@@ -392,6 +468,28 @@ export default function Home() {
       setPerfil((p) => ({ ...p, dataInicioApp: hojeISO() }));
     }
   }, [carregado, perfil]);
+
+  useEffect(() => {
+    if (typeof Notification === "undefined") return;
+    const intervalo = setInterval(() => {
+      const hoje = hojeISO();
+      const tarefas = dadosPorDia[hoje]?.tarefas || [];
+      const agora = new Date();
+      const horaAtual = `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
+      tarefas.forEach((t) => {
+        if (t.horario && t.horario === horaAtual && !t.feita) {
+          const chave = `titan-notif-${hoje}-${t.id}`;
+          if (!sessionStorage.getItem(chave)) {
+            sessionStorage.setItem(chave, "1");
+            if (Notification.permission === "granted") {
+              new Notification("Titan — hora da tarefa", { body: t.texto });
+            }
+          }
+        }
+      });
+    }, 20000);
+    return () => clearInterval(intervalo);
+  }, [dadosPorDia]);
 
   useEffect(() => {
     if (!carregado || !perfil || verificouAcesso) return;
@@ -476,47 +574,90 @@ export default function Home() {
   const xpTotal = calcularXpTotal(dadosPorDia, metas);
   const { atual: nivelAtual, proximo: proximoNivel } = calcularNivel(xpTotal);
 
+  function mudarData(novaData) {
+    setDataSelecionada(novaData);
+    setAba("saude");
+  }
+
+  function atualizarDia(iso, atualizador) {
+    setDadosPorDia((prev) => ({
+      ...prev,
+      [iso]: atualizador(mesclarRegistro(prev[iso])),
+    }));
+  }
+
   const TABS = [
     { id: "saude", label: "Saúde", Icone: Activity },
     { id: "mental", label: "Mental", Icone: Brain },
     { id: "financas", label: "Finanças", Icone: Wallet },
     { id: "vida", label: "Vida", Icone: Compass },
+    { id: "tarefas", label: "Tarefas", Icone: CalendarDays },
     { id: "metas", label: "Metas", Icone: Target },
     { id: "relatorios", label: "Relatórios", Icone: BarChart3 },
   ];
 
+  function aoTocarInicio(e) { touchStartX.current = e.touches[0].clientX; }  function aoTocarFim(e) {
+    if (touchStartX.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    const ehHoje = dataSelecionada === hojeISO();
+    const ehLimite = dataSelecionada <= dataLimite;
+    if (deltaX < -60 && !ehHoje) mudarData(somarDias(dataSelecionada, 1));
+    else if (deltaX > 60 && !ehLimite) mudarData(somarDias(dataSelecionada, -1));
+    touchStartX.current = null;
+  }
+
   return (
     <TemaContext.Provider value={temaValue}>
+      <style jsx global>{`
+        @keyframes tabIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-tabIn { animation: tabIn 0.28s ease-out; }
+        @keyframes confeteCair {
+          0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+          100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+        }
+        .animate-confeteCair { animation-name: confeteCair; animation-timing-function: ease-in; animation-fill-mode: forwards; }
+        @keyframes brilhoPainel {
+          0% { transform: translateX(-120%) skewX(-15deg); }
+          100% { transform: translateX(220%) skewX(-15deg); }
+        }
+        .animate-brilhoPainel { animation: brilhoPainel 3.5s ease-in-out infinite; }
+      `}</style>
       <main className={`min-h-screen pb-28 transition-colors duration-300 ${escuro ? "bg-slate-950" : "bg-slate-50"}`}>
-        <div className="max-w-md mx-auto px-5 py-8">
+        <div className="max-w-md mx-auto px-5 py-8" onTouchStart={aoTocarInicio} onTouchEnd={aoTocarFim}>
           <div className="flex items-center justify-between mb-6">
             <div className="w-9 h-9" />
-            <SeletorData dataSelecionada={dataSelecionada} setDataSelecionada={setDataSelecionada} dataLimite={dataLimite} />
+            <SeletorData dataSelecionada={dataSelecionada} setDataSelecionada={mudarData} dataLimite={dataLimite} />
             <BotaoTema />
           </div>
 
-          {aba === "saude" && (
-            <TabSaude
-              perfil={perfil}
-              registro={registro}
-              atualizarRegistro={atualizarRegistro}
-              metas={metas}
-              streak={streak}
-              xpTotal={xpTotal}
-              nivelAtual={nivelAtual}
-              proximoNivel={proximoNivel}
-              onEditarPerfil={() => setEditandoPerfil(true)}
-            />
-          )}
-          {aba === "mental" && <TabMental registro={registro} atualizarRegistro={atualizarRegistro} />}
-          {aba === "financas" && (
-            <TabFinancas registro={registro} atualizarRegistro={atualizarRegistro} metas={metas} atualizarMetas={atualizarMetas} />
-          )}
-          {aba === "vida" && <TabVida registro={registro} atualizarRegistro={atualizarRegistro} perfil={perfil} />}
-          {aba === "metas" && (
-            <TabMetas dadosPorDia={dadosPorDia} metas={metas} atualizarMetas={atualizarMetas} registro={registro} />
-          )}
-          {aba === "relatorios" && <TabRelatorios dadosPorDia={dadosPorDia} metas={metas} xpTotal={xpTotal} perfil={perfil} />}
+          <div key={aba} className="animate-tabIn">
+            {aba === "saude" && (
+              <TabSaude
+                perfil={perfil}
+                registro={registro}
+                atualizarRegistro={atualizarRegistro}
+                metas={metas}
+                streak={streak}
+                xpTotal={xpTotal}
+                nivelAtual={nivelAtual}
+                proximoNivel={proximoNivel}
+                onEditarPerfil={() => setEditandoPerfil(true)}
+              />
+            )}
+            {aba === "mental" && <TabMental registro={registro} atualizarRegistro={atualizarRegistro} />}
+            {aba === "financas" && (
+              <TabFinancas registro={registro} atualizarRegistro={atualizarRegistro} metas={metas} atualizarMetas={atualizarMetas} />
+            )}
+            {aba === "vida" && <TabVida registro={registro} atualizarRegistro={atualizarRegistro} perfil={perfil} />}
+            {aba === "tarefas" && <TabTarefas dadosPorDia={dadosPorDia} atualizarDia={atualizarDia} />}
+            {aba === "metas" && (
+              <TabMetas dadosPorDia={dadosPorDia} metas={metas} atualizarMetas={atualizarMetas} registro={registro} />
+            )}
+            {aba === "relatorios" && <TabRelatorios dadosPorDia={dadosPorDia} metas={metas} xpTotal={xpTotal} perfil={perfil} />}
+          </div>
         </div>
 
         {editandoPerfil && (
@@ -541,17 +682,17 @@ export default function Home() {
         )}
 
         <nav className={`fixed bottom-0 left-0 right-0 border-t ${escuro ? "bg-slate-950/95 border-slate-800" : "bg-white/95 border-slate-200"} backdrop-blur-md`}>
-          <div className="max-w-md mx-auto grid grid-cols-6">
+          <div className="max-w-md mx-auto grid grid-cols-7">
             {TABS.map((tab) => {
               const ativo = aba === tab.id;
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setAba(tab.id)}
+                  onClick={() => { navigator.vibrate?.(8); setAba(tab.id); }}
                   className="flex flex-col items-center gap-1 py-3 transition active:opacity-70"
                 >
-                  <tab.Icone size={18} strokeWidth={2} className={ativo ? "text-indigo-500" : escuro ? "text-slate-500" : "text-slate-400"} />
-                  <span className={`text-[10px] ${ativo ? (escuro ? "text-white font-medium" : "text-slate-900 font-medium") : escuro ? "text-slate-500" : "text-slate-400"}`}>{tab.label}</span>
+                  <tab.Icone size={16} strokeWidth={2} className={ativo ? "text-indigo-500" : escuro ? "text-slate-500" : "text-slate-400"} />
+                  <span className={`text-[9px] leading-none ${ativo ? (escuro ? "text-white font-medium" : "text-slate-900 font-medium") : escuro ? "text-slate-500" : "text-slate-400"}`}>{tab.label}</span>
                   <div className={`h-0.5 w-4 rounded-full ${ativo ? "bg-indigo-500" : "bg-transparent"}`} />
                 </button>
               );
@@ -737,6 +878,7 @@ function PopupResumoDia({ data, registro, metas, onFechar }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center px-6 z-50">
+      {boa && <Confete />}
       <div className="max-w-sm w-full rounded-xl p-6 border bg-slate-900 border-slate-800">
         <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center mb-3">
           <Award size={18} className={boa ? "text-emerald-400" : "text-indigo-400"} />
@@ -1043,7 +1185,7 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
 
           <div className="flex items-center gap-1.5 mt-3">
             <Flame size={13} className="text-amber-400" />
-            <p className="text-xs text-slate-400">Sequência sem fumar: {streak} dias · toque de novo pra desmarcar</p>
+            <p className="text-xs text-slate-400">Sequência sem fumar: <NumeroAnimado valor={streak} /> dias · toque de novo pra desmarcar</p>
           </div>
         </Painel>
       )}
@@ -1084,7 +1226,7 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
         <p className="text-lg font-semibold">{nivelAtual.nome}</p>
         <div className="mt-4">
           <div className="flex justify-between text-xs text-slate-400 mb-1">
-            <span>{xpTotal} XP</span>
+            <span><NumeroAnimado valor={xpTotal} /> XP</span>
             <span>{proximoNivel ? `próximo: ${proximoNivel.xpNecessario}` : "nível máximo"}</span>
           </div>
           <div className="w-full bg-slate-800 rounded-full h-1.5">
@@ -1271,7 +1413,7 @@ function TabMental({ registro, atualizarRegistro }) {
 
 function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas }) {
   const { escuro } = useTema();
-  const [novoGasto, setNovoGasto] = useState({ desc: "", valor: "", categoria: "Alimentação" });
+  const [novoGasto, setNovoGasto] = useState({ desc: "", valor: "", categoria: "" });
   const [novoInvest, setNovoInvest] = useState({ valor: "" });
   const totalGasto = registro.gastos.reduce((s, g) => s + g.valor, 0);
   const totalInvestido = registro.investimentos.reduce((s, i) => s + i.valor, 0);
@@ -1324,6 +1466,7 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas }) {
           </div>
           <div className="w-36 shrink-0">
             <CampoSelect value={novoGasto.categoria} onChange={(e) => setNovoGasto({ ...novoGasto, categoria: e.target.value })}>
+              <option value="">Sem categoria</option>
               {CATEGORIAS_GASTO.map((c) => <option key={c} value={c}>{c}</option>)}
             </CampoSelect>
           </div>
@@ -1552,6 +1695,130 @@ function TabMetas({ dadosPorDia, metas, atualizarMetas, registro }) {
         <Rotulo className="mb-2">Meta de gasto diário</Rotulo>
         <Sutil className="text-sm">R$ {(parseFloat(metas.gastoDiario) || 0).toFixed(2).replace(".", ",")} por dia — edite na aba Finanças</Sutil>
       </Cartao>
+    </>
+  );
+}
+
+function TabTarefas({ dadosPorDia, atualizarDia }) {
+  const { escuro } = useTema();
+  const [mesVisivel, setMesVisivel] = useState(mesDoIso(hojeISO()));
+  const [diaSelecionado, setDiaSelecionado] = useState(hojeISO());
+  const [novaTarefa, setNovaTarefa] = useState("");
+  const [novoHorario, setNovoHorario] = useState("");
+  const [permissao, setPermissao] = useState(typeof Notification !== "undefined" ? Notification.permission : "unsupported");
+
+  const celulas = celulasDoMes(mesVisivel);
+  const tarefasDoDia = dadosPorDia[diaSelecionado]?.tarefas || [];
+  const nomesDias = ["D", "S", "T", "Q", "Q", "S", "S"];
+
+  function temTarefas(iso) {
+    return (dadosPorDia[iso]?.tarefas || []).length > 0;
+  }
+  function adicionarTarefa() {
+    if (!novaTarefa.trim()) return;
+    atualizarDia(diaSelecionado, (r) => ({ ...r, tarefas: [...r.tarefas, { id: Date.now(), texto: novaTarefa.trim(), feita: false, horario: novoHorario }] }));
+    setNovaTarefa("");
+    setNovoHorario("");
+  }
+  function toggleTarefa(id) {
+    atualizarDia(diaSelecionado, (r) => ({ ...r, tarefas: r.tarefas.map((t) => (t.id === id ? { ...t, feita: !t.feita } : t)) }));
+  }
+  function removerTarefa(id) {
+    atualizarDia(diaSelecionado, (r) => ({ ...r, tarefas: r.tarefas.filter((t) => t.id !== id) }));
+  }
+  function ativarLembretes() {
+    if (typeof Notification === "undefined") return;
+    Notification.requestPermission().then((p) => setPermissao(p));
+  }
+
+  return (
+    <>
+      <Titulo>Tarefas</Titulo>
+      <Painel Icone={CalendarDays} corIcone="text-indigo-400">
+        <Sutil className="!text-slate-400 text-sm">Calendário</Sutil>
+        <p className="text-lg font-semibold">Organize seus dias</p>
+      </Painel>
+
+      {permissao !== "granted" && permissao !== "unsupported" && (
+        <Cartao className="mt-4">
+          <div className="flex items-center justify-between gap-3">
+            <Sutil className="text-xs">Ative os lembretes pra ser avisado no horário da tarefa (funciona enquanto o app estiver aberto)</Sutil>
+            <button onClick={ativarLembretes} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium shrink-0 transition active:opacity-80">Ativar</button>
+          </div>
+        </Cartao>
+      )}
+
+      <Cartao className="mt-6">
+        <div className="flex items-center justify-between mb-3">
+          <button onClick={() => setMesVisivel(somarMes(mesVisivel, -1))} className={`w-8 h-8 rounded-lg border flex items-center justify-center ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-500"}`}><ChevronLeft size={14} /></button>
+          <p className={`text-sm font-medium capitalize ${escuro ? "text-white" : "text-slate-900"}`}>{nomeMesCompleto(mesVisivel)}</p>
+          <button onClick={() => setMesVisivel(somarMes(mesVisivel, 1))} className={`w-8 h-8 rounded-lg border flex items-center justify-center ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-500"}`}><ChevronRight size={14} /></button>
+        </div>
+
+        <div className="grid grid-cols-7 gap-1 mb-1">
+          {nomesDias.map((d, i) => <Sutil key={i} className="text-[10px] text-center block">{d}</Sutil>)}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {celulas.map((iso, i) => {
+            if (!iso) return <div key={i} />;
+            const selecionado = iso === diaSelecionado;
+            const hoje = iso === hojeISO();
+            return (
+              <button
+                key={iso}
+                onClick={() => setDiaSelecionado(iso)}
+                className={`aspect-square rounded-lg text-xs relative flex items-center justify-center transition ${
+                  selecionado ? "bg-indigo-600 text-white font-medium" : hoje ? "border border-indigo-500 text-indigo-500" : escuro ? "text-slate-300 hover:bg-slate-800" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {parseInt(iso.slice(8), 10)}
+                {temTarefas(iso) && !selecionado && <span className="w-1 h-1 rounded-full bg-amber-400 absolute bottom-1" />}
+              </button>
+            );
+          })}
+        </div>
+      </Cartao>
+
+      <div className="mt-6">
+        <TituloSecao Icone={CalendarDays}>{formatarData(diaSelecionado)}</TituloSecao>
+        <Cartao>
+          <div className="flex gap-2 mb-3">
+            <div className="flex-1 min-w-0">
+              <Campo placeholder="Nova tarefa..." value={novaTarefa} onChange={(e) => setNovaTarefa(e.target.value)} onKeyDown={(e) => e.key === "Enter" && adicionarTarefa()} />
+            </div>
+            <div className="w-28 shrink-0">
+              <div className="relative">
+                <Campo type="time" value={novoHorario} onChange={(e) => setNovoHorario(e.target.value)} />
+                {novoHorario && (
+                  <button onClick={() => setNovoHorario("")} className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-slate-500 text-white text-[9px] flex items-center justify-center">✕</button>
+                )}
+              </div>
+            </div>
+            <button onClick={adicionarTarefa} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-3 transition active:opacity-80">
+              <Plus size={16} />
+            </button>
+          </div>
+
+          {tarefasDoDia.length === 0 && <Sutil className="text-sm">Nenhuma tarefa pra esse dia.</Sutil>}
+
+          <div className="space-y-2">
+            {tarefasDoDia.map((t) => (
+              <div key={t.id} className={`flex items-center justify-between gap-2 rounded-lg border p-3 ${escuro ? "bg-slate-800/60 border-slate-800" : "bg-slate-50 border-slate-100"}`}>
+                <button onClick={() => toggleTarefa(t.id)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+                  <span className={`w-5 h-5 rounded-md border flex items-center justify-center text-xs shrink-0 ${t.feita ? "bg-indigo-600 border-indigo-600 text-white" : escuro ? "border-slate-600" : "border-slate-300"}`}>
+                    {t.feita ? "✓" : ""}
+                  </span>
+                  <span className="min-w-0">
+                    {t.horario && <span className="text-[11px] text-indigo-500 font-medium block">{t.horario}</span>}
+                    <span className={`text-sm break-words ${t.feita ? "line-through text-slate-400" : escuro ? "text-slate-200" : "text-slate-700"}`}>{t.texto}</span>
+                  </span>
+                </button>
+                <button onClick={() => removerTarefa(t.id)} className="text-slate-400 shrink-0">✕</button>
+              </div>
+            ))}
+          </div>
+        </Cartao>
+      </div>
     </>
   );
 }
