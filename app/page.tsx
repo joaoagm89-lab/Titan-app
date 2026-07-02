@@ -1802,8 +1802,8 @@ function TabTarefas({ dadosPorDia, atualizarDia, googleConectado, googleFetch, c
     Notification.requestPermission().then((p) => setPermissao(p));
   }
 
-  async function sincronizarComGoogle() {
-    setSincronizando(true);
+  async function sincronizarComGoogle(mostrarCarregando = true) {
+    if (mostrarCarregando) setSincronizando(true);
     const diasDoMes = celulas.filter(Boolean);
     const inicio = diasDoMes[0];
     const fim = diasDoMes[diasDoMes.length - 1];
@@ -1818,9 +1818,15 @@ function TabTarefas({ dadosPorDia, atualizarDia, googleConectado, googleFetch, c
         });
       });
     } catch {}
-    setSincronizando(false);
+    if (mostrarCarregando) setSincronizando(false);
   }
 
+  useEffect(() => {
+    if (!googleConectado) return;
+    sincronizarComGoogle(false);
+    const intervalo = setInterval(() => sincronizarComGoogle(false), 60000);
+    return () => clearInterval(intervalo);
+  }, [googleConectado, mesVisivel]);
 
   return (
     <>
