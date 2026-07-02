@@ -88,7 +88,7 @@ const METAS_PADRAO = {
   metaPessoal: "",
   atividadeFisicaMetaMes: "",
   aguaMetaLitros: "",
-  gastosFixos: [],
+  gastosFixosPorMes: {},
 };
 
 const GASTOS_FIXOS_PADRAO = [
@@ -701,7 +701,7 @@ export default function Home() {
             )}
             {aba === "mental" && <TabMental registro={registro} atualizarRegistro={atualizarRegistro} />}
             {aba === "financas" && (
-              <TabFinancas registro={registro} atualizarRegistro={atualizarRegistro} metas={metas} atualizarMetas={atualizarMetas} />
+              <TabFinancas registro={registro} atualizarRegistro={atualizarRegistro} metas={metas} atualizarMetas={atualizarMetas} mesSelecionado={mesDoIso(dataSelecionada)} />
             )}
             {aba === "vida" && <TabVida registro={registro} atualizarRegistro={atualizarRegistro} perfil={perfil} />}
             {aba === "tarefas" && (
@@ -1472,7 +1472,7 @@ function TabMental({ registro, atualizarRegistro }) {
   );
 }
 
-function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas }) {
+function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSelecionado }) {
   const { escuro } = useTema();
   const [novoGasto, setNovoGasto] = useState({ desc: "", valor: "", categoria: "" });
   const [novoInvest, setNovoInvest] = useState({ valor: "" });
@@ -1481,19 +1481,33 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas }) {
   const totalInvestido = registro.investimentos.reduce((s, i) => s + i.valor, 0);
   const meta = parseFloat(metas.gastoDiario) || 0;
   const dentroDaMeta = meta > 0 ? totalGasto <= meta : null;
-  const gastosFixos = Array.isArray(metas.gastosFixos) ? metas.gastosFixos : [];
+
+  const gastosFixosPorMes = metas.gastosFixosPorMes && typeof metas.gastosFixosPorMes === "object" && !Array.isArray(metas.gastosFixosPorMes) ? metas.gastosFixosPorMes : {};
+  const listaDoMes = gastosFixosPorMes[mesSelecionado];
+  const gastosFixos = Array.isArray(listaDoMes) ? listaDoMes : [];
   const totalFixos = gastosFixos.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0);
 
-  function adicionarGastoFixo() {
-    if (!novoFixo.nome || !novoFixo.valor) return;
+  const mesesComDados = Object.keys(gastosFixosPorMes).filter((m) => Array.isArray(gastosFixosPorMes[m]) && gastosFixosPorMes[m].length > 0).sort();
+  const mesAnterior = [...mesesComDados].reverse().find((m) => m < mesSelecionado);
+  const podeCopiar = !listaDoMes && mesAnterior;
+
+  function salvarListaDoMes(novaLista) {
     atualizarMetas((m) => ({
       ...m,
-      gastosFixos: [...(Array.isArray(m.gastosFixos) ? m.gastosFixos : []), { id: Date.now(), nome: novoFixo.nome, valor: novoFixo.valor }],
+      gastosFixosPorMes: { ...(m.gastosFixosPorMes || {}), [mesSelecionado]: novaLista },
     }));
+  }
+  function adicionarGastoFixo() {
+    if (!novoFixo.nome || !novoFixo.valor) return;
+    salvarListaDoMes([...gastosFixos, { id: Date.now(), nome: novoFixo.nome, valor: novoFixo.valor }]);
     setNovoFixo({ nome: "", valor: "" });
   }
   function removerGastoFixo(id) {
-    atualizarMetas((m) => ({ ...m, gastosFixos: (Array.isArray(m.gastosFixos) ? m.gastosFixos : []).filter((g) => g.id !== id) }));
+    salvarListaDoMes(gastosFixos.filter((g) => g.id !== id));
+  }
+  function copiarDoMesAnterior() {
+    const listaAnterior = gastosFixosPorMes[mesAnterior] || [];
+    salvarListaDoMes(listaAnterior.map((g) => ({ ...g, id: Date.now() + Math.random() })));
   }
 
   function adicionarGasto() {
@@ -1591,12 +1605,18 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas }) {
 
       <div className="mt-8">
         <TituloSecao Icone={Receipt}>Gastos fixos</TituloSecao>
-        <Sutil className="text-xs block mb-3">Não entra na meta de gasto diário — é só pra acompanhar o total fixo do mês.</Sutil>
+        <Sutil className="text-xs block mb-3 capitalize">{nomeMesCompleto(mesSelecionado)} · não entra na meta de gasto diário</Sutil>
         <Cartao>
           <p className="mb-4">
             <span className={`text-2xl font-semibold ${escuro ? "text-white" : "text-slate-900"}`}>R$ {totalFixos.toFixed(2).replace(".", ",")}</span>
             <span className="text-sm text-slate-400"> /mês</span>
           </p>
+
+          {podeCopiar && (
+            <button onClick={copiarDoMesAnterior} className={`w-full text-xs px-3 py-2 rounded-lg border mb-3 transition active:opacity-70 ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
+              Copiar gastos fixos de {nomeMesCompleto(mesAnterior)}
+            </button>
+          )}
 
           <div className="flex gap-2 mb-2">
             <div className="flex-[1.4] min-w-0">
@@ -1611,7 +1631,7 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas }) {
           </div>
           <button onClick={adicionarGastoFixo} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2 text-sm font-medium mb-3 transition active:opacity-80">Adicionar</button>
 
-          {gastosFixos.length === 0 && <Sutil className="text-sm">Nenhum gasto fixo cadastrado ainda.</Sutil>}
+          {gastosFixos.length === 0 && <Sutil className="text-sm">Nenhum gasto fixo cadastrado para este mês ainda.</Sutil>}
           <div className="space-y-2">
             {gastosFixos.map((g) => (
               <div key={g.id} className="flex items-center justify-between text-sm">
@@ -2059,6 +2079,13 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
     return r.atividadeFisica?.feita ? (parseFloat(r.atividadeFisica.minutos) || 0) : 0;
   }
 
+  function fixosDoMes(chave) {
+    const gfpm = metas.gastosFixosPorMes;
+    const lista = gfpm && typeof gfpm === "object" && !Array.isArray(gfpm) ? gfpm[chave] : null;
+    if (!Array.isArray(lista)) return 0;
+    return lista.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0);
+  }
+
   const dadosGraficoMensal = mesesOrdenados.map((chave) => {
     const registros = meses[chave];
     const n = registros.length;
@@ -2068,7 +2095,7 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
     const fisicaMedia = Math.round(registros.reduce((s, r) => s + (r.saudeFisicaPercent || 0), 0) / n);
     const minutosTotal = registros.reduce((s, r) => s + minutosDoDia(r), 0);
     const caloriasTotal = registros.reduce((s, r) => s + caloriasDoDia(r), 0);
-    return { mes: nomeMes(chave), Gasto: Math.round(gastoTotal), Investido: Math.round(investidoTotal), Humor: humorMedio, Fisica: fisicaMedia, Minutos: minutosTotal, Calorias: caloriasTotal };
+    return { mes: nomeMes(chave), Gasto: Math.round(gastoTotal), Investido: Math.round(investidoTotal), Fixo: Math.round(fixosDoMes(chave)), Humor: humorMedio, Fisica: fisicaMedia, Minutos: minutosTotal, Calorias: caloriasTotal };
   });
 
   const dadosPeso = Object.keys(dadosPorDia).sort().map((iso) => ({ data: formatarData(iso).slice(0, 5), peso: parseFloat(dadosPorDia[iso].peso) || null })).filter((d) => d.peso);
@@ -2155,7 +2182,7 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
           {dadosGraficoMensal.length > 1 && (
             <>
               <div className="mt-6">
-                <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Gasto x Investido por mês</h2>
+                <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Gasto x Investido x Fixo por mês</h2>
                 <Cartao className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={dadosGraficoMensal}>
@@ -2166,6 +2193,7 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
                       <Legend wrapperStyle={{ fontSize: 12 }} />
                       <Bar dataKey="Gasto" fill="#e11d48" radius={[3, 3, 0, 0]} />
                       <Bar dataKey="Investido" fill="#0d9488" radius={[3, 3, 0, 0]} />
+                      <Bar dataKey="Fixo" fill="#d97706" radius={[3, 3, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </Cartao>
@@ -2259,6 +2287,7 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
               const caloriasTotal = registros.reduce((s, r) => s + caloriasDoDia(r), 0);
               const metaGasto = parseFloat(metas.gastoDiario) || 0;
               const diasDentroOrcamento = metaGasto > 0 ? registros.filter((r) => (r.gastos || []).reduce((a, g) => a + g.valor, 0) <= metaGasto).length : null;
+              const fixoTotal = fixosDoMes(chave);
               return (
                 <Cartao key={chave} className="border-l-2 border-l-indigo-500">
                   <p className={`font-semibold text-sm capitalize mb-2 ${escuro ? "text-white" : "text-slate-900"}`}>{nomeMesCompleto(chave)}</p>
@@ -2274,6 +2303,8 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
                     <Sutil>Peso médio: {pesoMedio} kg</Sutil>
                     <Sutil>Gasto total: R$ {gastoTotal.toFixed(2).replace(".", ",")}</Sutil>
                     <Sutil>Investido total: R$ {investidoTotal.toFixed(2).replace(".", ",")}</Sutil>
+                    <Sutil>Gastos fixos: R$ {fixoTotal.toFixed(2).replace(".", ",")}</Sutil>
+                    <Sutil>Total com fixos: R$ {(gastoTotal + fixoTotal).toFixed(2).replace(".", ",")}</Sutil>
                     {diasDentroOrcamento !== null && <Sutil>Dentro do orçamento: {diasDentroOrcamento}</Sutil>}
                   </div>
                 </Cartao>
