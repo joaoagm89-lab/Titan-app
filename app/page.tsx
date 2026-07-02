@@ -64,7 +64,6 @@ const REGISTRO_PADRAO = {
   humorPercent: 70,
   humorEmoji: "",
   notasHumor: [],
-  peso: "",
   aguaEntradas: [],
   refeicoes: [],
   saudeFisicaPercent: 50,
@@ -143,6 +142,12 @@ function dormiuNaMeta(horaDormiu, meta) {
   if (!horaDormiu || !meta) return false;
   return horaDormiu <= meta;
 }
+function registrarHistorico(historico, valor) {
+  const hoje = hojeISO();
+  const semHoje = (Array.isArray(historico) ? historico : []).filter((h) => h.data !== hoje);
+  return [...semHoje, { data: hoje, valor }].sort((a, b) => a.data.localeCompare(b.data));
+}
+
 function calcularCalorias(tipo, minutos, pesoKg) {
   const met = MET_POR_ATIVIDADE[tipo] || MET_POR_ATIVIDADE["Outro"];
   const peso = pesoKg || 75;
@@ -697,6 +702,7 @@ export default function Home() {
                 nivelAtual={nivelAtual}
                 proximoNivel={proximoNivel}
                 onEditarPerfil={() => setEditandoPerfil(true)}
+                onAtualizarPerfil={setPerfil}
               />
             )}
             {aba === "mental" && <TabMental registro={registro} atualizarRegistro={atualizarRegistro} />}
@@ -715,7 +721,7 @@ export default function Home() {
               />
             )}
             {aba === "metas" && (
-              <TabMetas dadosPorDia={dadosPorDia} metas={metas} atualizarMetas={atualizarMetas} registro={registro} />
+              <TabMetas dadosPorDia={dadosPorDia} metas={metas} atualizarMetas={atualizarMetas} registro={registro} perfil={perfil} />
             )}
             {aba === "relatorios" && <TabRelatorios dadosPorDia={dadosPorDia} metas={metas} xpTotal={xpTotal} perfil={perfil} />}
           </div>
@@ -1107,7 +1113,7 @@ function ImportarDadosLegado({ onImportar, onIgnorar }) {
 
 function EditarPerfilModal({ perfil, onSalvar, onCancelar }) {
   const { escuro } = useTema();
-  const [form, setForm] = useState({ acompanharCigarro: true, acompanharBebida: true, acompanharRelacionamento: true, acompanharLeitura: true, ...perfil });
+  const [form, setForm] = useState({ acompanharCigarro: true, acompanharBebida: true, acompanharRelacionamento: true, acompanharLeitura: true, altura: "", percentualGordura: "", ...perfil });
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center px-6 z-50">
       <div className={`rounded-xl p-6 max-w-sm w-full border max-h-[85vh] overflow-y-auto ${escuro ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
@@ -1116,6 +1122,8 @@ function EditarPerfilModal({ perfil, onSalvar, onCancelar }) {
           <Campo placeholder="Nome" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
           <Campo placeholder="Idade" type="number" value={form.idade} onChange={(e) => setForm({ ...form, idade: e.target.value })} />
           <Campo placeholder="Peso (kg)" type="number" value={form.peso} onChange={(e) => setForm({ ...form, peso: e.target.value })} />
+          <Campo placeholder="Altura (cm)" type="number" value={form.altura} onChange={(e) => setForm({ ...form, altura: e.target.value })} />
+          <Campo placeholder="% de gordura (opcional)" type="number" value={form.percentualGordura} onChange={(e) => setForm({ ...form, percentualGordura: e.target.value })} />
           <CampoSelect value={form.sexo} onChange={(e) => setForm({ ...form, sexo: e.target.value })}>
             <option value="masculino">Masculino</option>
             <option value="feminino">Feminino</option>
@@ -1145,7 +1153,12 @@ function EditarPerfilModal({ perfil, onSalvar, onCancelar }) {
 
         <div className="flex gap-3 mt-6">
           <button onClick={onCancelar} className={`flex-1 rounded-lg py-2 text-sm transition active:opacity-70 border ${escuro ? "border-slate-700 text-slate-200" : "border-slate-200 text-slate-700"}`}>Cancelar</button>
-          <button onClick={() => onSalvar(form)} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2 text-sm font-medium transition active:opacity-80">Salvar</button>
+          <button
+            onClick={() => onSalvar({ ...form, historicoPeso: registrarHistorico(form.historicoPeso, form.peso), historicoGordura: registrarHistorico(form.historicoGordura, form.percentualGordura) })}
+            className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2 text-sm font-medium transition active:opacity-80"
+          >
+            Salvar
+          </button>
         </div>
         <button onClick={() => supabase.auth.signOut()} className="w-full flex items-center justify-center gap-2 text-sm text-rose-500 mt-4 py-2">
           <LogOut size={14} /> Sair da conta
@@ -1172,7 +1185,7 @@ function SeletorData({ dataSelecionada, setDataSelecionada, dataLimite }) {
   );
 }
 
-function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal, nivelAtual, proximoNivel, onEditarPerfil }) {
+function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal, nivelAtual, proximoNivel, onEditarPerfil, onAtualizarPerfil }) {
   const { escuro } = useTema();
   const [novaRefeicao, setNovaRefeicao] = useState({ nome: "", kcal: "" });
   const [novaAgua, setNovaAgua] = useState("");
@@ -1180,7 +1193,7 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
     ? Math.round(((xpTotal - nivelAtual.xpNecessario) / (proximoNivel.xpNecessario - nivelAtual.xpNecessario)) * 100)
     : 100;
   const sonoOk = dormiuNaMeta(registro.horaDormiu, metas.horaDormirMeta);
-  const pesoRef = parseFloat(registro.peso) || parseFloat(perfil.peso) || 75;
+  const pesoRef = parseFloat(perfil.peso) || 75;
   const calorias = registro.atividadeFisica.feita ? calcularCalorias(registro.atividadeFisica.tipo, registro.atividadeFisica.minutos, pesoRef) : 0;
   const totalCalorias = registro.refeicoes.reduce((s, r) => s + r.kcal, 0);
   const totalAguaMl = registro.aguaEntradas.reduce((s, a) => s + a.ml, 0);
@@ -1371,7 +1384,24 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
             <Scale size={15} className="text-indigo-500" />
             <Rotulo>Peso (kg)</Rotulo>
           </div>
-          <Campo type="number" placeholder="ex: 78.5" value={registro.peso} onChange={(e) => atualizarRegistro((r) => ({ ...r, peso: e.target.value }))} />
+          <Sutil className="text-xs block mb-2">Fica igual todo dia até você alterar — só muda a partir do dia que você atualizar aqui.</Sutil>
+          <Campo
+            type="number"
+            placeholder="ex: 78.5"
+            value={perfil.peso || ""}
+            onChange={(e) => onAtualizarPerfil({ ...perfil, peso: e.target.value, historicoPeso: registrarHistorico(perfil.historicoPeso, e.target.value) })}
+          />
+        </Cartao>
+
+        <Cartao className="mt-3">
+          <Rotulo className="mb-2">% de gordura</Rotulo>
+          <Sutil className="text-xs block mb-3">Preencha com o valor que você já sabe (bioimpedância, adipômetro, etc). Fica valendo até você atualizar de novo.</Sutil>
+          <Campo
+            type="number"
+            placeholder="ex: 18.5"
+            value={perfil.percentualGordura || ""}
+            onChange={(e) => onAtualizarPerfil({ ...perfil, percentualGordura: e.target.value, historicoGordura: registrarHistorico(perfil.historicoGordura, e.target.value) })}
+          />
         </Cartao>
 
         <Cartao className="mt-3">
@@ -1736,7 +1766,7 @@ function TabVida({ registro, atualizarRegistro, perfil }) {
   );
 }
 
-function TabMetas({ dadosPorDia, metas, atualizarMetas, registro }) {
+function TabMetas({ dadosPorDia, metas, atualizarMetas, registro, perfil }) {
   const mesAtual = mesDoIso(hojeISO());
   const registrosDoMes = Object.entries(dadosPorDia).filter(([iso]) => mesDoIso(iso) === mesAtual).map(([, r]) => r);
   const totalInvestidoMes = registrosDoMes.reduce((s, r) => s + (r.investimentos || []).reduce((a, i) => a + i.valor, 0), 0);
@@ -1746,7 +1776,7 @@ function TabMetas({ dadosPorDia, metas, atualizarMetas, registro }) {
   const diasComAtividadeMes = registrosDoMes.filter((r) => r.atividadeFisica?.feita).length;
   const metaAtividade = parseFloat(metas.atividadeFisicaMetaMes) || 0;
   const progressoAtividade = metaAtividade > 0 ? Math.round((diasComAtividadeMes / metaAtividade) * 100) : 0;
-  const pesoAtual = parseFloat(registro.peso) || null;
+  const pesoAtual = parseFloat(perfil.peso) || null;
   const pesoMeta = parseFloat(metas.pesoMeta) || null;
   const aguaHojeLitros = (registro.aguaEntradas || []).reduce((s, a) => s + a.ml, 0) / 1000;
   const metaAgua = parseFloat(metas.aguaMetaLitros) || 0;
@@ -2074,7 +2104,7 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
 
   function caloriasDoDia(r) {
     if (!r.atividadeFisica?.feita) return 0;
-    const peso = parseFloat(r.peso) || parseFloat(perfil.peso) || 75;
+    const peso = parseFloat(perfil.peso) || 75;
     return calcularCalorias(r.atividadeFisica.tipo, r.atividadeFisica.minutos, peso);
   }
   function minutosDoDia(r) {
@@ -2100,7 +2130,10 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
     return { mes: nomeMes(chave), Gasto: Math.round(gastoTotal), Investido: Math.round(investidoTotal), Fixo: Math.round(fixosDoMes(chave)), Humor: humorMedio, Fisica: fisicaMedia, Minutos: minutosTotal, Calorias: caloriasTotal };
   });
 
-  const dadosPeso = Object.keys(dadosPorDia).sort().map((iso) => ({ data: formatarData(iso).slice(0, 5), peso: parseFloat(dadosPorDia[iso].peso) || null })).filter((d) => d.peso);
+  const dadosPeso = (Array.isArray(perfil.historicoPeso) ? perfil.historicoPeso : [])
+    .filter((h) => parseFloat(h.valor))
+    .sort((a, b) => a.data.localeCompare(b.data))
+    .map((h) => ({ data: formatarData(h.data).slice(0, 5), peso: parseFloat(h.valor) }));
 
   const totalGastoGeral = Object.values(dadosPorDia).reduce((s, r) => s + (r.gastos || []).reduce((a, g) => a + g.valor, 0), 0);
   const totalInvestidoGeral = Object.values(dadosPorDia).reduce((s, r) => s + (r.investimentos || []).reduce((a, i) => a + i.valor, 0), 0);
@@ -2129,6 +2162,8 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
   const corGrade = escuro ? "#1e293b" : "#f1f5f9";
   const corTexto = escuro ? "#64748b" : "#94a3b8";
 
+  const totalFixosGeral = Object.values(gastosFixosPorMesTop).reduce((s, lista) => s + (Array.isArray(lista) ? lista.reduce((a, g) => a + (parseFloat(g.valor) || 0), 0) : 0), 0);
+
   const CARDS = [
     { label: "XP total", valor: xpTotal, Icone: Award },
     { label: "Melhor sequência", valor: `${melhorStreak}d`, Icone: Flame },
@@ -2136,6 +2171,8 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
     { label: "Calorias queimadas", valor: `${totalCaloriasGeral} kcal`, Icone: Zap },
     { label: "Investido (total)", valor: `R$ ${totalInvestidoGeral.toFixed(0)}`, Icone: TrendingUp },
     { label: "Gasto (total)", valor: `R$ ${totalGastoGeral.toFixed(0)}`, Icone: Wallet },
+    { label: "Gastos fixos (total)", valor: `R$ ${totalFixosGeral.toFixed(0)}`, Icone: Receipt },
+    { label: "Peso atual", valor: `${pesoRecente ?? "—"} kg`, Icone: Scale },
   ];
 
   return (
@@ -2150,11 +2187,6 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
             <p className={`text-lg font-semibold mt-0.5 ${escuro ? "text-white" : "text-slate-900"}`}>{c.valor}</p>
           </div>
         ))}
-        <div className={`rounded-xl border p-4 col-span-2 ${escuro ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
-          <Scale size={15} className="text-indigo-500 mb-2" />
-          <Sutil className="text-xs">Peso atual</Sutil>
-          <p className={`text-lg font-semibold mt-0.5 ${escuro ? "text-white" : "text-slate-900"}`}>{pesoRecente ?? "—"} kg</p>
-        </div>
       </div>
 
       <div className="mt-6 flex gap-2">
@@ -2271,6 +2303,30 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
             </div>
           )}
 
+          {(() => {
+            const ultimoMesComFixos = [...mesesComFixos].sort().pop();
+            const dadosPizzaFixos = ultimoMesComFixos
+              ? gastosFixosPorMesTop[ultimoMesComFixos].map((g) => ({ nome: g.nome, valor: Math.round(parseFloat(g.valor) || 0) })).filter((g) => g.valor > 0)
+              : [];
+            if (dadosPizzaFixos.length === 0) return null;
+            return (
+              <div className="mt-6">
+                <h2 className={`font-semibold mb-3 text-sm capitalize ${escuro ? "text-white" : "text-slate-900"}`}>Composição dos gastos fixos ({nomeMesCompleto(ultimoMesComFixos)})</h2>
+                <Cartao className="h-56">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={dadosPizzaFixos} dataKey="valor" nameKey="nome" cx="50%" cy="50%" outerRadius={70} label={{ fontSize: 11, fill: corTexto }}>
+                        {dadosPizzaFixos.map((_, i) => <Cell key={i} fill={CORES_GRAFICO[i % CORES_GRAFICO.length]} />)}
+                      </Pie>
+                      <Tooltip formatter={(v) => `R$ ${v}`} />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </Cartao>
+              </div>
+            );
+          })()}
+
           <div className="mt-6 space-y-3">
             {mesesOrdenados.length === 0 && <Sutil className="text-sm">Ainda sem dados suficientes.</Sutil>}
             {[...mesesOrdenados].reverse().map((chave) => {
@@ -2283,7 +2339,7 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
               const diasSemFumar = registros.filter((r) => r.fumei === false).length;
               const diasAtividade = registros.filter((r) => r.atividadeFisica?.feita).length;
               const diasSonoOk = registros.filter((r) => dormiuNaMeta(r.horaDormiu, metas.horaDormirMeta)).length;
-              const pesos = registros.map((r) => parseFloat(r.peso)).filter((p) => !isNaN(p));
+              const pesos = (Array.isArray(perfil.historicoPeso) ? perfil.historicoPeso : []).filter((h) => mesDoIso(h.data) === chave).map((h) => parseFloat(h.valor)).filter((p) => !isNaN(p));
               const pesoMedio = pesos.length ? (pesos.reduce((a, b) => a + b, 0) / pesos.length).toFixed(1) : "—";
               const minutosTotal = registros.reduce((s, r) => s + minutosDoDia(r), 0);
               const caloriasTotal = registros.reduce((s, r) => s + caloriasDoDia(r), 0);
@@ -2336,7 +2392,7 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
                   <Sutil>Atividade: {r.atividadeFisica?.feita ? `${r.atividadeFisica.tipo || "sim"} (${r.atividadeFisica.minutos || 0}min)` : "não"}</Sutil>
                   <Sutil>Calorias: {caloriasDoDia(r)} kcal</Sutil>
                   <Sutil>Sono: {r.horaDormiu || "—"}</Sutil>
-                  <Sutil>Peso: {r.peso || "—"} kg</Sutil>
+                  <Sutil>Peso: {(perfil.historicoPeso || []).find((h) => h.data === iso)?.valor || "—"} kg</Sutil>
                   <Sutil>Gasto: R$ {gastoTotal.toFixed(2).replace(".", ",")}</Sutil>
                   <Sutil>Investido: R$ {investidoTotal.toFixed(2).replace(".", ",")}</Sutil>
                   <Sutil>Alimentação: {kcalTotal} kcal</Sutil>
