@@ -644,9 +644,12 @@ export default function Home() {
     if (e.touches.length > 1) { touchStartX.current = null; return; }
     touchStartX.current = e.touches[0].clientX;
   }
+  function aoTocarMover(e) {
+    if (e.touches.length > 1) touchStartX.current = null;
+  }
   function aoTocarFim(e) {
     if (touchStartX.current === null) return;
-    if (e.touches.length > 0 || e.changedTouches.length > 1) { touchStartX.current = null; return; }
+    if (e.touches.length > 0) { touchStartX.current = null; return; }
     const deltaX = e.changedTouches[0].clientX - touchStartX.current;
     const ehHoje = dataSelecionada === hojeISO();
     const ehLimite = dataSelecionada <= dataLimite;
@@ -675,7 +678,7 @@ export default function Home() {
         .animate-brilhoPainel { animation: brilhoPainel 3.5s ease-in-out infinite; }
       `}</style>
       <main className={`min-h-screen pb-28 transition-colors duration-300 ${escuro ? "bg-slate-950" : "bg-slate-50"}`}>
-        <div className="max-w-md mx-auto px-5 py-8" onTouchStart={aoTocarInicio} onTouchEnd={aoTocarFim}>
+        <div className="max-w-md mx-auto px-5 py-8" onTouchStart={aoTocarInicio} onTouchMove={aoTocarMover} onTouchEnd={aoTocarFim}>
           <div className="flex items-center justify-between mb-6">
             <div className="w-9 h-9" />
             <SeletorData dataSelecionada={dataSelecionada} setDataSelecionada={mudarData} dataLimite={dataLimite} />
