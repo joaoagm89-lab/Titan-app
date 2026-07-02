@@ -15,7 +15,14 @@ export async function obterAccessToken(userId) {
     .select("refresh_token")
     .eq("user_id", userId)
     .maybeSingle();
-  if (error || !data) return null;
+  if (error) {
+    console.error("obterAccessToken: erro ao buscar no Supabase", error);
+    return null;
+  }
+  if (!data) {
+    console.error("obterAccessToken: nenhum refresh_token encontrado para", userId);
+    return null;
+  }
 
   const resp = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -28,6 +35,9 @@ export async function obterAccessToken(userId) {
     }),
   });
   const json = await resp.json();
-  if (!resp.ok) return null;
+  if (!resp.ok) {
+    console.error("obterAccessToken: falhou renovar token junto ao Google", json);
+    return null;
+  }
   return json.access_token;
 }

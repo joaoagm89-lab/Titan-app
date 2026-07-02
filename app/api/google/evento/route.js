@@ -19,10 +19,16 @@ function somarDiasSimples(dataIso, dias) {
 
 export async function POST(request) {
   const user = await obterUsuarioAutenticado(request);
-  if (!user) return NextResponse.json({ error: "não autenticado" }, { status: 401 });
+  if (!user) {
+    console.error("Evento Google: usuário não autenticado");
+    return NextResponse.json({ error: "não autenticado" }, { status: 401 });
+  }
 
   const accessToken = await obterAccessToken(user.id);
-  if (!accessToken) return NextResponse.json({ error: "google não conectado" }, { status: 400 });
+  if (!accessToken) {
+    console.error("Evento Google: não conseguiu obter access token para", user.id);
+    return NextResponse.json({ error: "google não conectado" }, { status: 400 });
+  }
 
   const { data, hora, texto, googleEventId, duracaoMinutos } = await request.json();
 
@@ -57,7 +63,10 @@ export async function POST(request) {
     body: JSON.stringify(evento),
   });
   const json = await resp.json();
-  if (!resp.ok) return NextResponse.json({ error: json }, { status: 400 });
+  if (!resp.ok) {
+    console.error("Evento Google: falhou criar/atualizar evento", json);
+    return NextResponse.json({ error: json }, { status: 400 });
+  }
 
   return NextResponse.json({ googleEventId: json.id });
 }
