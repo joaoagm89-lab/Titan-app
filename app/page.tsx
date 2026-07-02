@@ -90,6 +90,22 @@ const METAS_PADRAO = {
   gastosFixosPorMes: {},
 };
 
+const MODULOS_PRINCIPAIS = [
+  { chave: "saude", label: "Saúde (cigarro, atividade física, sono, água...)" },
+  { chave: "mental", label: "Mental" },
+  { chave: "financas", label: "Finanças" },
+  { chave: "vida", label: "Vida (trabalho, leitura, relacionamento)" },
+  { chave: "tarefas", label: "Tarefas e calendário" },
+  { chave: "metas", label: "Metas" },
+];
+
+const SUB_MODULOS_PADRAO = {
+  atividadeFisica: true, sono: true, agua: true, alimentacao: true,
+  peso: true, disposicao: true, percentualGordura: true,
+  gastosDiarios: true, investimento: true, gastosFixos: true,
+  trabalho: true,
+};
+
 const GASTOS_FIXOS_PADRAO = [
   "Aluguel", "Condomínio", "Luz", "Água", "Internet", "Telefone/Celular",
   "Pensão", "Plano de saúde", "Streaming/Assinaturas", "Seguro",
@@ -535,6 +551,15 @@ export default function Home() {
     })();
   }, [sessao]);
 
+  useEffect(() => {
+    if (!perfil) return;
+    const modulosAtivos = { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true, ...(perfil.modulosAtivos || {}) };
+    if (aba !== "relatorios" && !modulosAtivos[aba]) {
+      const primeiraDisponivel = ["saude", "mental", "financas", "vida", "tarefas", "metas"].find((m) => modulosAtivos[m]);
+      setAba(primeiraDisponivel || "relatorios");
+    }
+  }, [perfil, aba]);
+
   const temaValue = { escuro, alternar: () => setEscuro((e) => !e) };
 
   if (carregandoAuth) return null;
@@ -635,6 +660,9 @@ export default function Home() {
     setGoogleConectado(false);
   }
 
+  const modulos = { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true, ...(perfil.modulosAtivos || {}) };
+  const subModulos = { ...SUB_MODULOS_PADRAO, ...(perfil.subModulos || {}) };
+
   const TABS = [
     { id: "saude", label: "Saúde", Icone: Activity },
     { id: "mental", label: "Mental", Icone: Brain },
@@ -643,7 +671,7 @@ export default function Home() {
     { id: "tarefas", label: "Tarefas", Icone: CalendarDays },
     { id: "metas", label: "Metas", Icone: Target },
     { id: "relatorios", label: "Relatórios", Icone: BarChart3 },
-  ];
+  ].filter((tab) => tab.id === "relatorios" || modulos[tab.id]);
 
   function aoTocarInicio(e) {
     if (e.touches.length > 1) { touchStartX.current = null; return; }
@@ -685,7 +713,9 @@ export default function Home() {
       <main className={`min-h-screen pb-28 transition-colors duration-300 ${escuro ? "bg-slate-950" : "bg-slate-50"}`}>
         <div className="max-w-md mx-auto px-5 py-8" onTouchStart={aoTocarInicio} onTouchMove={aoTocarMover} onTouchEnd={aoTocarFim}>
           <div className="flex items-center justify-between mb-6">
-            <div className="w-9 h-9" />
+            <button onClick={() => setEditandoPerfil(true)} className={`w-9 h-9 rounded-lg border flex items-center justify-center transition active:opacity-70 ${escuro ? "bg-slate-900 border-slate-800 text-slate-400" : "bg-white border-slate-200 text-slate-500"}`}>
+              <Pencil size={15} />
+            </button>
             <SeletorData dataSelecionada={dataSelecionada} setDataSelecionada={mudarData} dataLimite={dataLimite} />
             <BotaoTema />
           </div>
@@ -703,13 +733,14 @@ export default function Home() {
                 proximoNivel={proximoNivel}
                 onEditarPerfil={() => setEditandoPerfil(true)}
                 onAtualizarPerfil={setPerfil}
+                subModulos={subModulos}
               />
             )}
             {aba === "mental" && <TabMental registro={registro} atualizarRegistro={atualizarRegistro} />}
             {aba === "financas" && (
-              <TabFinancas registro={registro} atualizarRegistro={atualizarRegistro} metas={metas} atualizarMetas={atualizarMetas} mesSelecionado={mesDoIso(dataSelecionada)} />
+              <TabFinancas registro={registro} atualizarRegistro={atualizarRegistro} metas={metas} atualizarMetas={atualizarMetas} mesSelecionado={mesDoIso(dataSelecionada)} subModulos={subModulos} />
             )}
-            {aba === "vida" && <TabVida registro={registro} atualizarRegistro={atualizarRegistro} perfil={perfil} />}
+            {aba === "vida" && <TabVida registro={registro} atualizarRegistro={atualizarRegistro} perfil={perfil} subModulos={subModulos} />}
             {aba === "tarefas" && (
               <TabTarefas
                 dadosPorDia={dadosPorDia}
@@ -749,7 +780,7 @@ export default function Home() {
         )}
 
         <nav className={`fixed bottom-0 left-0 right-0 border-t ${escuro ? "bg-slate-950/95 border-slate-800" : "bg-white/95 border-slate-200"} backdrop-blur-md`}>
-          <div className="max-w-md mx-auto grid grid-cols-7">
+          <div className="max-w-md mx-auto grid" style={{ gridTemplateColumns: `repeat(${TABS.length}, minmax(0, 1fr))` }}>
             {TABS.map((tab) => {
               const ativo = aba === tab.id;
               return (
@@ -800,7 +831,11 @@ function calcularXpTotal(dadosPorDia, metas) {
 function Onboarding({ onConcluir }) {
   const { escuro, alternar } = useTema();
   const [etapa, setEtapa] = useState(1);
-  const [form, setForm] = useState({ nome: "", idade: "", peso: "", sexo: "", acompanharCigarro: true, acompanharBebida: true, acompanharRelacionamento: true, acompanharLeitura: true });
+  const [form, setForm] = useState({
+    nome: "", idade: "", peso: "", sexo: "",
+    acompanharCigarro: true, acompanharBebida: true, acompanharRelacionamento: true, acompanharLeitura: true,
+    modulosAtivos: { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true },
+  });
   const [metasForm, setMetasForm] = useState({ ...METAS_PADRAO });
 
   function avancar() {
@@ -841,7 +876,20 @@ function Onboarding({ onConcluir }) {
           <>
             <p className="text-xs font-medium text-indigo-500 mb-1 uppercase tracking-wide">Passo 2 de 3</p>
             <Titulo>Monte o seu app</Titulo>
-            <Sutil className="text-sm mb-6 block mt-1">Escolha quais controles você quer acompanhar. Pode mudar depois, quando quiser.</Sutil>
+            <Sutil className="text-sm mb-4 block mt-1">Escolha quais partes do app você quer usar. Pode mudar depois, quando quiser.</Sutil>
+            <div className="space-y-2 mb-5">
+              {MODULOS_PRINCIPAIS.map((mod) => (
+                <label key={mod.chave} className={`flex items-center gap-2 text-sm p-3 rounded-lg border ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
+                  <input
+                    type="checkbox"
+                    checked={form.modulosAtivos[mod.chave]}
+                    onChange={(e) => setForm({ ...form, modulosAtivos: { ...form.modulosAtivos, [mod.chave]: e.target.checked } })}
+                  />
+                  {mod.label}
+                </label>
+              ))}
+            </div>
+            <Sutil className="text-xs mb-3 block">Dentro de Saúde e Vida, o que você quer acompanhar:</Sutil>
             <div className="space-y-3">
               <label className={`flex items-center gap-2 text-sm p-3 rounded-lg border ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
                 <input type="checkbox" checked={form.acompanharCigarro} onChange={(e) => setForm({ ...form, acompanharCigarro: e.target.checked })} />
@@ -1111,9 +1159,25 @@ function ImportarDadosLegado({ onImportar, onIgnorar }) {
   );
 }
 
+function ToggleLinha({ label, checked, onChange, escuro }) {
+  return (
+    <label className={`flex items-center gap-2 text-sm p-2.5 rounded-lg border ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      {label}
+    </label>
+  );
+}
+
 function EditarPerfilModal({ perfil, onSalvar, onCancelar }) {
   const { escuro } = useTema();
-  const [form, setForm] = useState({ acompanharCigarro: true, acompanharBebida: true, acompanharRelacionamento: true, acompanharLeitura: true, altura: "", percentualGordura: "", ...perfil });
+  const [form, setForm] = useState({
+    acompanharCigarro: true, acompanharBebida: true, acompanharRelacionamento: true, acompanharLeitura: true,
+    altura: "", percentualGordura: "",
+    modulosAtivos: { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true },
+    ...perfil,
+    modulosAtivos: { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true, ...(perfil.modulosAtivos || {}) },
+    subModulos: { ...SUB_MODULOS_PADRAO, ...(perfil.subModulos || {}) },
+  });
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center px-6 z-50">
       <div className={`rounded-xl p-6 max-w-sm w-full border max-h-[85vh] overflow-y-auto ${escuro ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
@@ -1131,24 +1195,45 @@ function EditarPerfilModal({ perfil, onSalvar, onCancelar }) {
           </CampoSelect>
         </div>
 
-        <Sutil className="text-xs block mt-5 mb-2">Módulos ativos</Sutil>
+        <Sutil className="text-xs block mt-5 mb-2">Abas ativas do app</Sutil>
+        <div className="space-y-2 mb-5">
+          {MODULOS_PRINCIPAIS.map((mod) => (
+            <label key={mod.chave} className={`flex items-center gap-2 text-sm p-2.5 rounded-lg border ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
+              <input
+                type="checkbox"
+                checked={form.modulosAtivos[mod.chave]}
+                onChange={(e) => setForm({ ...form, modulosAtivos: { ...form.modulosAtivos, [mod.chave]: e.target.checked } })}
+              />
+              {mod.label}
+            </label>
+          ))}
+        </div>
+
+        <Sutil className="text-xs block mb-2 font-medium">🏃 Saúde</Sutil>
+        <div className="space-y-2 mb-4">
+          <ToggleLinha escuro={escuro} label="Hábito de fumar" checked={form.acompanharCigarro} onChange={(v) => setForm({ ...form, acompanharCigarro: v })} />
+          <ToggleLinha escuro={escuro} label="Bebida alcoólica" checked={form.acompanharBebida} onChange={(v) => setForm({ ...form, acompanharBebida: v })} />
+          <ToggleLinha escuro={escuro} label="Atividade física" checked={form.subModulos.atividadeFisica} onChange={(v) => setForm({ ...form, subModulos: { ...form.subModulos, atividadeFisica: v } })} />
+          <ToggleLinha escuro={escuro} label="Horário de sono" checked={form.subModulos.sono} onChange={(v) => setForm({ ...form, subModulos: { ...form.subModulos, sono: v } })} />
+          <ToggleLinha escuro={escuro} label="Disposição" checked={form.subModulos.disposicao} onChange={(v) => setForm({ ...form, subModulos: { ...form.subModulos, disposicao: v } })} />
+          <ToggleLinha escuro={escuro} label="Peso" checked={form.subModulos.peso} onChange={(v) => setForm({ ...form, subModulos: { ...form.subModulos, peso: v } })} />
+          <ToggleLinha escuro={escuro} label="% de gordura" checked={form.subModulos.percentualGordura} onChange={(v) => setForm({ ...form, subModulos: { ...form.subModulos, percentualGordura: v } })} />
+          <ToggleLinha escuro={escuro} label="Água" checked={form.subModulos.agua} onChange={(v) => setForm({ ...form, subModulos: { ...form.subModulos, agua: v } })} />
+          <ToggleLinha escuro={escuro} label="Alimentação" checked={form.subModulos.alimentacao} onChange={(v) => setForm({ ...form, subModulos: { ...form.subModulos, alimentacao: v } })} />
+        </div>
+
+        <Sutil className="text-xs block mb-2 font-medium">💰 Finanças</Sutil>
+        <div className="space-y-2 mb-4">
+          <ToggleLinha escuro={escuro} label="Gastos do dia" checked={form.subModulos.gastosDiarios} onChange={(v) => setForm({ ...form, subModulos: { ...form.subModulos, gastosDiarios: v } })} />
+          <ToggleLinha escuro={escuro} label="Investimento" checked={form.subModulos.investimento} onChange={(v) => setForm({ ...form, subModulos: { ...form.subModulos, investimento: v } })} />
+          <ToggleLinha escuro={escuro} label="Gastos fixos" checked={form.subModulos.gastosFixos} onChange={(v) => setForm({ ...form, subModulos: { ...form.subModulos, gastosFixos: v } })} />
+        </div>
+
+        <Sutil className="text-xs block mb-2 font-medium">🧭 Vida</Sutil>
         <div className="space-y-2">
-          <label className={`flex items-center gap-2 text-sm p-2.5 rounded-lg border ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
-            <input type="checkbox" checked={form.acompanharCigarro} onChange={(e) => setForm({ ...form, acompanharCigarro: e.target.checked })} />
-            Hábito de fumar
-          </label>
-          <label className={`flex items-center gap-2 text-sm p-2.5 rounded-lg border ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
-            <input type="checkbox" checked={form.acompanharBebida} onChange={(e) => setForm({ ...form, acompanharBebida: e.target.checked })} />
-            Bebida alcoólica
-          </label>
-          <label className={`flex items-center gap-2 text-sm p-2.5 rounded-lg border ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
-            <input type="checkbox" checked={form.acompanharRelacionamento} onChange={(e) => setForm({ ...form, acompanharRelacionamento: e.target.checked })} />
-            Relacionamento
-          </label>
-          <label className={`flex items-center gap-2 text-sm p-2.5 rounded-lg border ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
-            <input type="checkbox" checked={form.acompanharLeitura} onChange={(e) => setForm({ ...form, acompanharLeitura: e.target.checked })} />
-            Leitura
-          </label>
+          <ToggleLinha escuro={escuro} label="Trabalho" checked={form.subModulos.trabalho} onChange={(v) => setForm({ ...form, subModulos: { ...form.subModulos, trabalho: v } })} />
+          <ToggleLinha escuro={escuro} label="Leitura" checked={form.acompanharLeitura} onChange={(v) => setForm({ ...form, acompanharLeitura: v })} />
+          <ToggleLinha escuro={escuro} label="Relacionamento" checked={form.acompanharRelacionamento} onChange={(v) => setForm({ ...form, acompanharRelacionamento: v })} />
         </div>
 
         <div className="flex gap-3 mt-6">
@@ -1185,7 +1270,7 @@ function SeletorData({ dataSelecionada, setDataSelecionada, dataLimite }) {
   );
 }
 
-function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal, nivelAtual, proximoNivel, onEditarPerfil, onAtualizarPerfil }) {
+function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal, nivelAtual, proximoNivel, onEditarPerfil, onAtualizarPerfil, subModulos }) {
   const { escuro } = useTema();
   const [novaRefeicao, setNovaRefeicao] = useState({ nome: "", kcal: "" });
   const [novaAgua, setNovaAgua] = useState("");
@@ -1312,6 +1397,7 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
       <div className="mt-8">
         <TituloSecao Icone={Activity}>Rotina do dia</TituloSecao>
 
+        {subModulos.atividadeFisica && (
         <Cartao>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -1345,7 +1431,9 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
             </div>
           )}
         </Cartao>
+        )}
 
+        {subModulos.sono && (
         <Cartao className="mt-3">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
@@ -1366,7 +1454,9 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
           </div>
           <Sutil className="text-xs mt-2 block">Meta: {metas.horaDormirMeta || "não definida"}</Sutil>
         </Cartao>
+        )}
 
+        {subModulos.disposicao && (
         <Cartao className="mt-3">
           <div className="flex justify-between items-center mb-2">
             <Rotulo>Como você está se sentindo hoje</Rotulo>
@@ -1378,7 +1468,9 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
             <Sutil>Muito disposto</Sutil>
           </div>
         </Cartao>
+        )}
 
+        {subModulos.peso && (
         <Cartao className="mt-3">
           <div className="flex items-center gap-2 mb-2">
             <Scale size={15} className="text-indigo-500" />
@@ -1392,7 +1484,9 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
             onChange={(e) => onAtualizarPerfil({ ...perfil, peso: e.target.value, historicoPeso: registrarHistorico(perfil.historicoPeso, e.target.value) })}
           />
         </Cartao>
+        )}
 
+        {subModulos.percentualGordura && (
         <Cartao className="mt-3">
           <Rotulo className="mb-2">% de gordura</Rotulo>
           <Sutil className="text-xs block mb-3">Preencha com o valor que você já sabe (bioimpedância, adipômetro, etc). Fica valendo até você atualizar de novo.</Sutil>
@@ -1403,7 +1497,9 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
             onChange={(e) => onAtualizarPerfil({ ...perfil, percentualGordura: e.target.value, historicoGordura: registrarHistorico(perfil.historicoGordura, e.target.value) })}
           />
         </Cartao>
+        )}
 
+        {subModulos.agua && (
         <Cartao className="mt-3">
           <div className="flex justify-between items-center mb-3">
             <div className="flex items-center gap-2">
@@ -1432,7 +1528,9 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
             ))}
           </div>
         </Cartao>
+        )}
 
+        {subModulos.alimentacao && (
         <Cartao className="mt-3">
           <div className="flex items-center gap-2 mb-2">
             <UtensilsCrossed size={15} className="text-indigo-500" />
@@ -1460,6 +1558,7 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
             ))}
           </div>
         </Cartao>
+        )}
       </div>
     </>
   );
@@ -1502,7 +1601,7 @@ function TabMental({ registro, atualizarRegistro }) {
   );
 }
 
-function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSelecionado }) {
+function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSelecionado, subModulos }) {
   const { escuro } = useTema();
   const [novoGasto, setNovoGasto] = useState({ desc: "", valor: "", categoria: "" });
   const [novoInvest, setNovoInvest] = useState({ valor: "" });
@@ -1557,6 +1656,8 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSe
     <>
       <Titulo>Finanças</Titulo>
 
+      {subModulos.gastosDiarios && (
+      <>
       <Painel Icone={Wallet} corIcone="text-emerald-400">
         <div className="flex justify-between items-start">
           <div>
@@ -1608,7 +1709,10 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSe
           </div>
         ))}
       </div>
+      </>
+      )}
 
+      {subModulos.investimento && (
       <div className="mt-8">
         <TituloSecao Icone={PiggyBank}>Investimento do dia</TituloSecao>
         <Cartao>
@@ -1632,7 +1736,9 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSe
           </div>
         </Cartao>
       </div>
+      )}
 
+      {subModulos.gastosFixos && (
       <div className="mt-8">
         <TituloSecao Icone={Receipt}>Gastos fixos</TituloSecao>
         <Sutil className="text-xs block mb-3 capitalize">{nomeMesCompleto(mesSelecionado)} · não entra na meta de gasto diário</Sutil>
@@ -1675,11 +1781,12 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSe
           </div>
         </Cartao>
       </div>
+      )}
     </>
   );
 }
 
-function TabVida({ registro, atualizarRegistro, perfil }) {
+function TabVida({ registro, atualizarRegistro, perfil, subModulos }) {
   const trabalhoPercent = Math.round((registro.trabalhoClassificacao / (NIVEL_TRABALHO.length - 1)) * 100);
 
   return (
@@ -1692,6 +1799,8 @@ function TabVida({ registro, atualizarRegistro, perfil }) {
       </Painel>
 
       <div className="mt-6">
+      {subModulos.trabalho && (
+        <>
         <TituloSecao Icone={Briefcase}>Trabalho</TituloSecao>
         <Cartao>
           <div className="flex justify-between items-center mb-2">
@@ -1721,6 +1830,8 @@ function TabVida({ registro, atualizarRegistro, perfil }) {
             className="h-24"
           />
         </Cartao>
+        </>
+      )}
 
         {perfil.acompanharLeitura !== false && (
           <Cartao className="mt-3">
@@ -2088,6 +2199,8 @@ function TabTarefas({ dadosPorDia, atualizarDia, googleConectado, googleFetch, c
 }
 
 function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
+  const modulos = { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true, ...(perfil.modulosAtivos || {}) };
+  const acompanhaCigarroRel = perfil.acompanharCigarro !== false;
   const { escuro } = useTema();
   const [modo, setModo] = useState("mensal");
   const datasOrdenadas = Object.keys(dadosPorDia).sort().reverse();
@@ -2165,15 +2278,15 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
   const totalFixosGeral = Object.values(gastosFixosPorMesTop).reduce((s, lista) => s + (Array.isArray(lista) ? lista.reduce((a, g) => a + (parseFloat(g.valor) || 0), 0) : 0), 0);
 
   const CARDS = [
-    { label: "XP total", valor: xpTotal, Icone: Award },
-    { label: "Melhor sequência", valor: `${melhorStreak}d`, Icone: Flame },
-    { label: "Tempo de atividade", valor: `${totalMinutosGeral} min`, Icone: Timer },
-    { label: "Calorias queimadas", valor: `${totalCaloriasGeral} kcal`, Icone: Zap },
-    { label: "Investido (total)", valor: `R$ ${totalInvestidoGeral.toFixed(0)}`, Icone: TrendingUp },
-    { label: "Gasto (total)", valor: `R$ ${totalGastoGeral.toFixed(0)}`, Icone: Wallet },
-    { label: "Gastos fixos (total)", valor: `R$ ${totalFixosGeral.toFixed(0)}`, Icone: Receipt },
-    { label: "Peso atual", valor: `${pesoRecente ?? "—"} kg`, Icone: Scale },
-  ];
+    { label: "XP total", valor: xpTotal, Icone: Award, moduloReq: "saude" },
+    { label: "Melhor sequência", valor: `${melhorStreak}d`, Icone: Flame, moduloReq: "saude", extra: acompanhaCigarroRel },
+    { label: "Tempo de atividade", valor: `${totalMinutosGeral} min`, Icone: Timer, moduloReq: "saude" },
+    { label: "Calorias queimadas", valor: `${totalCaloriasGeral} kcal`, Icone: Zap, moduloReq: "saude" },
+    { label: "Investido (total)", valor: `R$ ${totalInvestidoGeral.toFixed(0)}`, Icone: TrendingUp, moduloReq: "financas" },
+    { label: "Gasto (total)", valor: `R$ ${totalGastoGeral.toFixed(0)}`, Icone: Wallet, moduloReq: "financas" },
+    { label: "Gastos fixos (total)", valor: `R$ ${totalFixosGeral.toFixed(0)}`, Icone: Receipt, moduloReq: "financas" },
+    { label: "Peso atual", valor: `${pesoRecente ?? "—"} kg`, Icone: Scale, moduloReq: "saude" },
+  ].filter((c) => modulos[c.moduloReq] && c.extra !== false);
 
   return (
     <>
@@ -2196,7 +2309,7 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
 
       {modo === "mensal" && (
         <>
-          {dadosPeso.length > 1 && (
+          {modulos.saude && dadosPeso.length > 1 && (
             <div className="mt-6">
               <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Evolução do peso</h2>
               <Cartao className="h-48">
@@ -2213,63 +2326,65 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
             </div>
           )}
 
-          {dadosGraficoMensal.length > 1 && (
-            <>
-              <div className="mt-6">
-                <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Gasto x Investido x Fixo por mês</h2>
-                <Cartao className="h-52">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={dadosGraficoMensal}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={corGrade} />
-                      <XAxis dataKey="mes" tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} />
-                      <Tooltip />
-                      <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Bar dataKey="Gasto" fill="#e11d48" radius={[3, 3, 0, 0]} />
-                      <Bar dataKey="Investido" fill="#0d9488" radius={[3, 3, 0, 0]} />
-                      <Bar dataKey="Fixo" fill="#d97706" radius={[3, 3, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </Cartao>
-              </div>
-
-              <div className="mt-6">
-                <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Atividade física: minutos x calorias</h2>
-                <Cartao className="h-52">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={dadosGraficoMensal}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={corGrade} />
-                      <XAxis dataKey="mes" tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} />
-                      <Tooltip />
-                      <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Bar dataKey="Minutos" fill="#d97706" radius={[3, 3, 0, 0]} />
-                      <Bar dataKey="Calorias" fill="#6366f1" radius={[3, 3, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </Cartao>
-              </div>
-
-              <div className="mt-6">
-                <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Evolução de humor e disposição</h2>
-                <Cartao className="h-52">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={dadosGraficoMensal}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={corGrade} />
-                      <XAxis dataKey="mes" tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} />
-                      <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} />
-                      <Tooltip />
-                      <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Line type="monotone" dataKey="Humor" stroke="#e11d48" strokeWidth={2} dot={{ r: 3 }} />
-                      <Line type="monotone" dataKey="Fisica" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </Cartao>
-              </div>
-            </>
+          {modulos.financas && dadosGraficoMensal.length > 1 && (
+            <div className="mt-6">
+              <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Gasto x Investido x Fixo por mês</h2>
+              <Cartao className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dadosGraficoMensal}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={corGrade} />
+                    <XAxis dataKey="mes" tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} />
+                    <Tooltip />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="Gasto" fill="#e11d48" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="Investido" fill="#0d9488" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="Fixo" fill="#d97706" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </Cartao>
+            </div>
           )}
 
-          {dadosPizzaGastos.length > 0 && (
+          {modulos.saude && dadosGraficoMensal.length > 1 && (
+            <div className="mt-6">
+              <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Atividade física: minutos x calorias</h2>
+              <Cartao className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dadosGraficoMensal}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={corGrade} />
+                    <XAxis dataKey="mes" tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} />
+                    <Tooltip />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="Minutos" fill="#d97706" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="Calorias" fill="#6366f1" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </Cartao>
+            </div>
+          )}
+
+          {(modulos.mental || modulos.saude) && dadosGraficoMensal.length > 1 && (
+            <div className="mt-6">
+              <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Evolução de {modulos.mental && modulos.saude ? "humor e disposição" : modulos.mental ? "humor" : "disposição"}</h2>
+              <Cartao className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={dadosGraficoMensal}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={corGrade} />
+                    <XAxis dataKey="mes" tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} />
+                    <Tooltip />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    {modulos.mental && <Line type="monotone" dataKey="Humor" stroke="#e11d48" strokeWidth={2} dot={{ r: 3 }} />}
+                    {modulos.saude && <Line type="monotone" dataKey="Fisica" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />}
+                  </LineChart>
+                </ResponsiveContainer>
+              </Cartao>
+            </div>
+          )}
+
+          {modulos.financas && dadosPizzaGastos.length > 0 && (
             <div className="mt-6">
               <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Gastos por categoria</h2>
               <Cartao className="h-56">
@@ -2286,7 +2401,7 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
             </div>
           )}
 
-          {dadosPizza.length > 0 && (
+          {modulos.saude && dadosPizza.length > 0 && (
             <div className="mt-6">
               <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Atividades mais praticadas</h2>
               <Cartao className="h-56">
@@ -2304,6 +2419,7 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
           )}
 
           {(() => {
+            if (!modulos.financas) return null;
             const ultimoMesComFixos = [...mesesComFixos].sort().pop();
             const dadosPizzaFixos = ultimoMesComFixos
               ? gastosFixosPorMesTop[ultimoMesComFixos].map((g) => ({ nome: g.nome, valor: Math.round(parseFloat(g.valor) || 0) })).filter((g) => g.valor > 0)
@@ -2351,19 +2467,19 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
                   <p className={`font-semibold text-sm capitalize mb-2 ${escuro ? "text-white" : "text-slate-900"}`}>{nomeMesCompleto(chave)}</p>
                   <div className="grid grid-cols-2 gap-y-1 text-xs">
                     <Sutil>Dias registrados: {n}</Sutil>
-                    <Sutil>Dias sem fumar: {diasSemFumar}</Sutil>
-                    <Sutil>Atividade física: {diasAtividade} dias</Sutil>
-                    <Sutil>Minutos totais: {minutosTotal}</Sutil>
-                    <Sutil>Calorias: {caloriasTotal} kcal</Sutil>
-                    <Sutil>Sono dentro da meta: {diasSonoOk}</Sutil>
-                    <Sutil>Humor médio: {humorMedio}%</Sutil>
-                    <Sutil>Disposição média: {fisicaMedia}%</Sutil>
-                    <Sutil>Peso médio: {pesoMedio} kg</Sutil>
-                    <Sutil>Gasto total: R$ {gastoTotal.toFixed(2).replace(".", ",")}</Sutil>
-                    <Sutil>Investido total: R$ {investidoTotal.toFixed(2).replace(".", ",")}</Sutil>
-                    <Sutil>Gastos fixos: R$ {fixoTotal.toFixed(2).replace(".", ",")}</Sutil>
-                    <Sutil>Total com fixos: R$ {(gastoTotal + fixoTotal).toFixed(2).replace(".", ",")}</Sutil>
-                    {diasDentroOrcamento !== null && <Sutil>Dentro do orçamento: {diasDentroOrcamento}</Sutil>}
+                    {modulos.saude && acompanhaCigarroRel && <Sutil>Dias sem fumar: {diasSemFumar}</Sutil>}
+                    {modulos.saude && <Sutil>Atividade física: {diasAtividade} dias</Sutil>}
+                    {modulos.saude && <Sutil>Minutos totais: {minutosTotal}</Sutil>}
+                    {modulos.saude && <Sutil>Calorias: {caloriasTotal} kcal</Sutil>}
+                    {modulos.saude && <Sutil>Sono dentro da meta: {diasSonoOk}</Sutil>}
+                    {modulos.mental && <Sutil>Humor médio: {humorMedio}%</Sutil>}
+                    {modulos.saude && <Sutil>Disposição média: {fisicaMedia}%</Sutil>}
+                    {modulos.saude && <Sutil>Peso médio: {pesoMedio} kg</Sutil>}
+                    {modulos.financas && <Sutil>Gasto total: R$ {gastoTotal.toFixed(2).replace(".", ",")}</Sutil>}
+                    {modulos.financas && <Sutil>Investido total: R$ {investidoTotal.toFixed(2).replace(".", ",")}</Sutil>}
+                    {modulos.financas && <Sutil>Gastos fixos: R$ {fixoTotal.toFixed(2).replace(".", ",")}</Sutil>}
+                    {modulos.financas && <Sutil>Total com fixos: R$ {(gastoTotal + fixoTotal).toFixed(2).replace(".", ",")}</Sutil>}
+                    {modulos.financas && diasDentroOrcamento !== null && <Sutil>Dentro do orçamento: {diasDentroOrcamento}</Sutil>}
                   </div>
                 </Cartao>
               );
@@ -2384,19 +2500,19 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
               <Cartao key={iso} className={`border-l-2 ${escuro ? "border-l-slate-700" : "border-l-slate-300"}`}>
                 <div className="flex justify-between items-center mb-2">
                   <p className={`font-semibold text-sm ${escuro ? "text-white" : "text-slate-900"}`}>{formatarData(iso)}</p>
-                  <span className="text-xs">{r.fumei === false ? "não fumou" : r.fumei === true ? "fumou" : "sem resposta"}</span>
+                  {modulos.saude && acompanhaCigarroRel && <span className="text-xs">{r.fumei === false ? "não fumou" : r.fumei === true ? "fumou" : "sem resposta"}</span>}
                 </div>
                 <div className="grid grid-cols-2 gap-y-1 text-xs">
-                  <Sutil>Mental: {r.humorPercent}%</Sutil>
-                  <Sutil>Disposição: {r.saudeFisicaPercent}%</Sutil>
-                  <Sutil>Atividade: {r.atividadeFisica?.feita ? `${r.atividadeFisica.tipo || "sim"} (${r.atividadeFisica.minutos || 0}min)` : "não"}</Sutil>
-                  <Sutil>Calorias: {caloriasDoDia(r)} kcal</Sutil>
-                  <Sutil>Sono: {r.horaDormiu || "—"}</Sutil>
-                  <Sutil>Peso: {(perfil.historicoPeso || []).find((h) => h.data === iso)?.valor || "—"} kg</Sutil>
-                  <Sutil>Gasto: R$ {gastoTotal.toFixed(2).replace(".", ",")}</Sutil>
-                  <Sutil>Investido: R$ {investidoTotal.toFixed(2).replace(".", ",")}</Sutil>
-                  <Sutil>Alimentação: {kcalTotal} kcal</Sutil>
-                  <Sutil>Água: {(((r.aguaEntradas || []).reduce((s, a) => s + a.ml, 0)) / 1000).toFixed(2)} L</Sutil>
+                  {modulos.mental && <Sutil>Mental: {r.humorPercent}%</Sutil>}
+                  {modulos.saude && <Sutil>Disposição: {r.saudeFisicaPercent}%</Sutil>}
+                  {modulos.saude && <Sutil>Atividade: {r.atividadeFisica?.feita ? `${r.atividadeFisica.tipo || "sim"} (${r.atividadeFisica.minutos || 0}min)` : "não"}</Sutil>}
+                  {modulos.saude && <Sutil>Calorias: {caloriasDoDia(r)} kcal</Sutil>}
+                  {modulos.saude && <Sutil>Sono: {r.horaDormiu || "—"}</Sutil>}
+                  {modulos.saude && <Sutil>Peso: {(perfil.historicoPeso || []).find((h) => h.data === iso)?.valor || "—"} kg</Sutil>}
+                  {modulos.financas && <Sutil>Gasto: R$ {gastoTotal.toFixed(2).replace(".", ",")}</Sutil>}
+                  {modulos.financas && <Sutil>Investido: R$ {investidoTotal.toFixed(2).replace(".", ",")}</Sutil>}
+                  {modulos.saude && <Sutil>Alimentação: {kcalTotal} kcal</Sutil>}
+                  {modulos.saude && <Sutil>Água: {(((r.aguaEntradas || []).reduce((s, a) => s + a.ml, 0)) / 1000).toFixed(2)} L</Sutil>}
                 </div>
               </Cartao>
             );
