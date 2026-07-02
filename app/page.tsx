@@ -640,8 +640,13 @@ export default function Home() {
     { id: "relatorios", label: "Relatórios", Icone: BarChart3 },
   ];
 
-  function aoTocarInicio(e) { touchStartX.current = e.touches[0].clientX; }  function aoTocarFim(e) {
+  function aoTocarInicio(e) {
+    if (e.touches.length > 1) { touchStartX.current = null; return; }
+    touchStartX.current = e.touches[0].clientX;
+  }
+  function aoTocarFim(e) {
     if (touchStartX.current === null) return;
+    if (e.touches.length > 0 || e.changedTouches.length > 1) { touchStartX.current = null; return; }
     const deltaX = e.changedTouches[0].clientX - touchStartX.current;
     const ehHoje = dataSelecionada === hojeISO();
     const ehLimite = dataSelecionada <= dataLimite;
@@ -1473,19 +1478,19 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas }) {
   const totalInvestido = registro.investimentos.reduce((s, i) => s + i.valor, 0);
   const meta = parseFloat(metas.gastoDiario) || 0;
   const dentroDaMeta = meta > 0 ? totalGasto <= meta : null;
-  const gastosFixos = metas.gastosFixos || [];
+  const gastosFixos = Array.isArray(metas.gastosFixos) ? metas.gastosFixos : [];
   const totalFixos = gastosFixos.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0);
 
   function adicionarGastoFixo() {
     if (!novoFixo.nome || !novoFixo.valor) return;
     atualizarMetas((m) => ({
       ...m,
-      gastosFixos: [...(m.gastosFixos || []), { id: Date.now(), nome: novoFixo.nome, valor: novoFixo.valor }],
+      gastosFixos: [...(Array.isArray(m.gastosFixos) ? m.gastosFixos : []), { id: Date.now(), nome: novoFixo.nome, valor: novoFixo.valor }],
     }));
     setNovoFixo({ nome: "", valor: "" });
   }
   function removerGastoFixo(id) {
-    atualizarMetas((m) => ({ ...m, gastosFixos: (m.gastosFixos || []).filter((g) => g.id !== id) }));
+    atualizarMetas((m) => ({ ...m, gastosFixos: (Array.isArray(m.gastosFixos) ? m.gastosFixos : []).filter((g) => g.id !== id) }));
   }
 
   function adicionarGasto() {
