@@ -10,7 +10,7 @@ import {
   Activity, Brain, Wallet, Compass, Target, BarChart3,
   Sun, Moon, ChevronLeft, ChevronRight, Pencil, Cigarette, CigaretteOff,
   Dumbbell, Droplets, Scale, UtensilsCrossed, TrendingUp, Briefcase,
-  BookOpen, Heart, Users, Flame, Timer, Zap, PiggyBank, Award, LogOut,
+  BookOpen, Heart, Users, Flame, Timer, Zap, PiggyBank, Award, LogOut, Wine,
 } from "lucide-react";
 
 const TIPOS_ATIVIDADE = [
@@ -54,24 +54,30 @@ const CARINHAS_HUMOR = [
 
 const REGISTRO_PADRAO = {
   fumei: null,
+  quantidadeCigarros: "",
+  bebeu: null,
+  bebida: { tipo: "", quantidade: "" },
   atividadeFisica: { feita: false, tipo: "", minutos: "" },
   horaDormiu: "",
   gastos: [],
   investimentos: [],
   humorPercent: 70,
   humorEmoji: "",
-  notaHumor: "",
+  notasHumor: [],
   peso: "",
-  aguaCopos: 0,
+  aguaEntradas: [],
   refeicoes: [],
   saudeFisicaPercent: 50,
   trabalhoClassificacao: 2,
-  notaAprendizado: "",
+  notasAprendizado: [],
   leituraLivro: "",
   leituraPaginas: "",
-  notaRelacionamento: "",
-  notaFamilia: "",
+  notasRelacionamento: [],
+  notasFamilia: [],
 };
+
+const TIPOS_BEBIDA = ["Cerveja", "Vinho", "Whisky/Destilado", "Vodka", "Cachaça", "Drink", "Outro"];
+const CATEGORIAS_GASTO = ["Alimentação", "Transporte", "Lazer", "Saúde", "Outro"];
 
 const METAS_PADRAO = {
   gastoDiario: "",
@@ -147,6 +153,77 @@ function BotaoTema() {
     <button onClick={alternar} className={`w-9 h-9 rounded-lg flex items-center justify-center transition active:opacity-70 ${escuro ? "bg-slate-900 border border-slate-800 text-slate-400" : "bg-white border border-slate-200 text-slate-500"}`}>
       {escuro ? <Sun size={16} /> : <Moon size={16} />}
     </button>
+  );
+}
+
+function horaAgora() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function CampoDiario({ entradas, onAdicionar, onRemover, placeholder, className = "" }) {
+  const { escuro } = useTema();
+  const [texto, setTexto] = useState("");
+
+  function salvar() {
+    if (!texto.trim()) return;
+    onAdicionar(texto.trim());
+    setTexto("");
+  }
+
+  return (
+    <div>
+      <CampoArea
+        placeholder={placeholder}
+        value={texto}
+        onChange={(e) => setTexto(e.target.value)}
+        className={className}
+      />
+      <button onClick={salvar} className="mt-2 px-4 py-1.5 rounded-lg text-xs font-medium transition active:opacity-80 bg-indigo-600 hover:bg-indigo-700 text-white">
+        Salvar
+      </button>
+
+      {entradas.length > 0 && (
+        <div className="mt-4 space-y-2">
+          {[...entradas].reverse().map((e) => (
+            <div key={e.id} className={`flex items-start justify-between gap-2 rounded-lg border p-3 ${escuro ? "bg-slate-800/60 border-slate-800" : "bg-slate-50 border-slate-100"}`}>
+              <div className="min-w-0">
+                <p className="text-[11px] text-slate-400 mb-0.5">{e.hora}</p>
+                <p className={`text-sm break-words ${escuro ? "text-slate-200" : "text-slate-700"}`}>{e.texto}</p>
+              </div>
+              <button onClick={() => onRemover(e.id)} className="text-slate-400 shrink-0">✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CampoMetaPessoal({ valor, onSalvar }) {
+  const [rascunho, setRascunho] = useState(valor);
+  const [salvo, setSalvo] = useState(false);
+
+  useEffect(() => { setRascunho(valor); }, [valor]);
+
+  function salvar() {
+    onSalvar(rascunho);
+    setSalvo(true);
+    setTimeout(() => setSalvo(false), 1500);
+  }
+
+  return (
+    <div>
+      <CampoArea
+        placeholder="Escreva uma meta pessoal para você..."
+        value={rascunho}
+        onChange={(e) => { setRascunho(e.target.value); setSalvo(false); }}
+        className="h-20"
+      />
+      <button onClick={salvar} className={`mt-2 px-4 py-1.5 rounded-lg text-xs font-medium transition active:opacity-80 ${salvo ? "bg-emerald-500 text-white" : "bg-indigo-600 hover:bg-indigo-700 text-white"}`}>
+        {salvo ? "Salvo ✓" : "Salvar"}
+      </button>
+    </div>
   );
 }
 
@@ -379,6 +456,7 @@ export default function Home() {
       ...REGISTRO_PADRAO,
       ...bruto,
       atividadeFisica: { ...REGISTRO_PADRAO.atividadeFisica, ...(bruto?.atividadeFisica) },
+      bebida: { ...REGISTRO_PADRAO.bebida, ...(bruto?.bebida) },
     };
   }
 
@@ -434,7 +512,7 @@ export default function Home() {
           {aba === "financas" && (
             <TabFinancas registro={registro} atualizarRegistro={atualizarRegistro} metas={metas} atualizarMetas={atualizarMetas} />
           )}
-          {aba === "vida" && <TabVida registro={registro} atualizarRegistro={atualizarRegistro} />}
+          {aba === "vida" && <TabVida registro={registro} atualizarRegistro={atualizarRegistro} perfil={perfil} />}
           {aba === "metas" && (
             <TabMetas dadosPorDia={dadosPorDia} metas={metas} atualizarMetas={atualizarMetas} registro={registro} />
           )}
@@ -514,7 +592,7 @@ function calcularXpTotal(dadosPorDia, metas) {
 function Onboarding({ onConcluir }) {
   const { escuro, alternar } = useTema();
   const [etapa, setEtapa] = useState(1);
-  const [form, setForm] = useState({ nome: "", idade: "", peso: "", sexo: "", acompanharCigarro: true });
+  const [form, setForm] = useState({ nome: "", idade: "", peso: "", sexo: "", acompanharCigarro: true, acompanharBebida: true, acompanharRelacionamento: true, acompanharLeitura: true });
   const [metasForm, setMetasForm] = useState({ ...METAS_PADRAO });
 
   function avancar() {
@@ -533,7 +611,7 @@ function Onboarding({ onConcluir }) {
       <div className={`max-w-sm w-full rounded-xl p-6 border ${escuro ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
         {etapa === 1 && (
           <>
-            <p className="text-xs font-medium text-indigo-500 mb-1 uppercase tracking-wide">Passo 1 de 2</p>
+            <p className="text-xs font-medium text-indigo-500 mb-1 uppercase tracking-wide">Passo 1 de 3</p>
             <Titulo>Bem-vindo ao Titan</Titulo>
             <Sutil className="text-sm mb-6 block mt-1">Antes de começar, conta um pouco sobre você.</Sutil>
             <div className="space-y-3">
@@ -546,10 +624,6 @@ function Onboarding({ onConcluir }) {
                 <option value="feminino">Feminino</option>
                 <option value="outro">Outro</option>
               </CampoSelect>
-              <label className={`flex items-center gap-2 text-sm pt-1 ${escuro ? "text-slate-300" : "text-slate-600"}`}>
-                <input type="checkbox" checked={form.acompanharCigarro} onChange={(e) => setForm({ ...form, acompanharCigarro: e.target.checked })} />
-                Quero acompanhar o hábito de fumar
-              </label>
             </div>
             <button onClick={avancar} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-3 text-sm font-medium mt-6 transition active:opacity-80">Continuar</button>
           </>
@@ -557,7 +631,37 @@ function Onboarding({ onConcluir }) {
 
         {etapa === 2 && (
           <>
-            <p className="text-xs font-medium text-indigo-500 mb-1 uppercase tracking-wide">Passo 2 de 2</p>
+            <p className="text-xs font-medium text-indigo-500 mb-1 uppercase tracking-wide">Passo 2 de 3</p>
+            <Titulo>Monte o seu app</Titulo>
+            <Sutil className="text-sm mb-6 block mt-1">Escolha quais controles você quer acompanhar. Pode mudar depois, quando quiser.</Sutil>
+            <div className="space-y-3">
+              <label className={`flex items-center gap-2 text-sm p-3 rounded-lg border ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
+                <input type="checkbox" checked={form.acompanharCigarro} onChange={(e) => setForm({ ...form, acompanharCigarro: e.target.checked })} />
+                Acompanhar hábito de fumar
+              </label>
+              <label className={`flex items-center gap-2 text-sm p-3 rounded-lg border ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
+                <input type="checkbox" checked={form.acompanharBebida} onChange={(e) => setForm({ ...form, acompanharBebida: e.target.checked })} />
+                Acompanhar bebida alcoólica
+              </label>
+              <label className={`flex items-center gap-2 text-sm p-3 rounded-lg border ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
+                <input type="checkbox" checked={form.acompanharRelacionamento} onChange={(e) => setForm({ ...form, acompanharRelacionamento: e.target.checked })} />
+                Acompanhar relacionamento (esposa/família)
+              </label>
+              <label className={`flex items-center gap-2 text-sm p-3 rounded-lg border ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
+                <input type="checkbox" checked={form.acompanharLeitura} onChange={(e) => setForm({ ...form, acompanharLeitura: e.target.checked })} />
+                Acompanhar leitura
+              </label>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setEtapa(1)} className={`flex-1 rounded-lg py-3 text-sm font-medium transition active:opacity-70 border ${escuro ? "border-slate-700 text-slate-200" : "border-slate-200 text-slate-700"}`}>Voltar</button>
+              <button onClick={() => setEtapa(3)} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-3 text-sm font-medium transition active:opacity-80">Continuar</button>
+            </div>
+          </>
+        )}
+
+        {etapa === 3 && (
+          <>
+            <p className="text-xs font-medium text-indigo-500 mb-1 uppercase tracking-wide">Passo 3 de 3</p>
             <Titulo>Suas metas</Titulo>
             <Sutil className="text-sm mb-6 block mt-1">Isso ajuda o app a te mostrar seu progresso. Pode editar depois, quando quiser.</Sutil>
             <div className="space-y-3">
@@ -597,7 +701,7 @@ function Onboarding({ onConcluir }) {
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setEtapa(1)} className={`flex-1 rounded-lg py-3 text-sm font-medium transition active:opacity-70 border ${escuro ? "border-slate-700 text-slate-200" : "border-slate-200 text-slate-700"}`}>Voltar</button>
+              <button onClick={() => setEtapa(2)} className={`flex-1 rounded-lg py-3 text-sm font-medium transition active:opacity-70 border ${escuro ? "border-slate-700 text-slate-200" : "border-slate-200 text-slate-700"}`}>Voltar</button>
               <button onClick={concluir} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-3 text-sm font-medium transition active:opacity-80">Concluir</button>
             </div>
           </>
@@ -800,10 +904,10 @@ function ImportarDadosLegado({ onImportar, onIgnorar }) {
 
 function EditarPerfilModal({ perfil, onSalvar, onCancelar }) {
   const { escuro } = useTema();
-  const [form, setForm] = useState({ acompanharCigarro: true, ...perfil });
+  const [form, setForm] = useState({ acompanharCigarro: true, acompanharBebida: true, acompanharRelacionamento: true, acompanharLeitura: true, ...perfil });
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center px-6 z-50">
-      <div className={`rounded-xl p-6 max-w-sm w-full border ${escuro ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
+      <div className={`rounded-xl p-6 max-w-sm w-full border max-h-[85vh] overflow-y-auto ${escuro ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
         <h3 className={`font-semibold text-lg mb-4 ${escuro ? "text-white" : "text-slate-900"}`}>Editar perfil</h3>
         <div className="space-y-3">
           <Campo placeholder="Nome" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
@@ -814,11 +918,28 @@ function EditarPerfilModal({ perfil, onSalvar, onCancelar }) {
             <option value="feminino">Feminino</option>
             <option value="outro">Outro</option>
           </CampoSelect>
-          <label className={`flex items-center gap-2 text-sm pt-1 ${escuro ? "text-slate-300" : "text-slate-600"}`}>
+        </div>
+
+        <Sutil className="text-xs block mt-5 mb-2">Módulos ativos</Sutil>
+        <div className="space-y-2">
+          <label className={`flex items-center gap-2 text-sm p-2.5 rounded-lg border ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
             <input type="checkbox" checked={form.acompanharCigarro} onChange={(e) => setForm({ ...form, acompanharCigarro: e.target.checked })} />
-            Quero acompanhar o hábito de fumar
+            Hábito de fumar
+          </label>
+          <label className={`flex items-center gap-2 text-sm p-2.5 rounded-lg border ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
+            <input type="checkbox" checked={form.acompanharBebida} onChange={(e) => setForm({ ...form, acompanharBebida: e.target.checked })} />
+            Bebida alcoólica
+          </label>
+          <label className={`flex items-center gap-2 text-sm p-2.5 rounded-lg border ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
+            <input type="checkbox" checked={form.acompanharRelacionamento} onChange={(e) => setForm({ ...form, acompanharRelacionamento: e.target.checked })} />
+            Relacionamento
+          </label>
+          <label className={`flex items-center gap-2 text-sm p-2.5 rounded-lg border ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
+            <input type="checkbox" checked={form.acompanharLeitura} onChange={(e) => setForm({ ...form, acompanharLeitura: e.target.checked })} />
+            Leitura
           </label>
         </div>
+
         <div className="flex gap-3 mt-6">
           <button onClick={onCancelar} className={`flex-1 rounded-lg py-2 text-sm transition active:opacity-70 border ${escuro ? "border-slate-700 text-slate-200" : "border-slate-200 text-slate-700"}`}>Cancelar</button>
           <button onClick={() => onSalvar(form)} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2 text-sm font-medium transition active:opacity-80">Salvar</button>
@@ -851,6 +972,7 @@ function SeletorData({ dataSelecionada, setDataSelecionada, dataLimite }) {
 function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal, nivelAtual, proximoNivel, onEditarPerfil }) {
   const { escuro } = useTema();
   const [novaRefeicao, setNovaRefeicao] = useState({ nome: "", kcal: "" });
+  const [novaAgua, setNovaAgua] = useState("");
   const progresso = proximoNivel
     ? Math.round(((xpTotal - nivelAtual.xpNecessario) / (proximoNivel.xpNecessario - nivelAtual.xpNecessario)) * 100)
     : 100;
@@ -858,6 +980,7 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
   const pesoRef = parseFloat(registro.peso) || parseFloat(perfil.peso) || 75;
   const calorias = registro.atividadeFisica.feita ? calcularCalorias(registro.atividadeFisica.tipo, registro.atividadeFisica.minutos, pesoRef) : 0;
   const totalCalorias = registro.refeicoes.reduce((s, r) => s + r.kcal, 0);
+  const totalAguaMl = registro.aguaEntradas.reduce((s, a) => s + a.ml, 0);
   const acompanhaCigarro = perfil.acompanharCigarro !== false;
   const nivelDisposicao = Math.round(registro.saudeFisicaPercent / 25);
 
@@ -865,6 +988,17 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
     if (!novaRefeicao.nome || !novaRefeicao.kcal) return;
     atualizarRegistro((r) => ({ ...r, refeicoes: [...r.refeicoes, { id: Date.now(), nome: novaRefeicao.nome, kcal: parseFloat(novaRefeicao.kcal) }] }));
     setNovaRefeicao({ nome: "", kcal: "" });
+  }
+  function adicionarAgua() {
+    if (!novaAgua) return;
+    atualizarRegistro((r) => ({ ...r, aguaEntradas: [...r.aguaEntradas, { id: Date.now(), ml: parseFloat(novaAgua) }] }));
+    setNovaAgua("");
+  }
+  function adicionarAguaRapido(ml) {
+    atualizarRegistro((r) => ({ ...r, aguaEntradas: [...r.aguaEntradas, { id: Date.now(), ml }] }));
+  }
+  function removerAgua(id) {
+    atualizarRegistro((r) => ({ ...r, aguaEntradas: r.aguaEntradas.filter((a) => a.id !== id) }));
   }
   function removerRefeicao(id) { atualizarRegistro((r) => ({ ...r, refeicoes: r.refeicoes.filter((x) => x.id !== id) })); }
 
@@ -883,7 +1017,7 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
           <Rotulo className="!text-slate-300 mb-3">Cigarro</Rotulo>
           <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={() => atualizarRegistro((r) => ({ ...r, fumei: r.fumei === false ? null : false }))}
+              onClick={() => atualizarRegistro((r) => ({ ...r, fumei: r.fumei === false ? null : false, quantidadeCigarros: r.fumei === false ? r.quantidadeCigarros : "" }))}
               className={`rounded-lg py-3 text-sm font-medium border transition active:opacity-80 ${registro.fumei === false ? "bg-emerald-500 text-white border-emerald-500" : "border-slate-700 text-slate-300"}`}
             >
               Não fumei
@@ -895,12 +1029,55 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
               Fumei
             </button>
           </div>
+
+          {registro.fumei === true && (
+            <div className="flex items-center justify-between mt-3 bg-slate-800/60 rounded-lg p-2">
+              <span className="text-xs text-slate-300">Quantos cigarros?</span>
+              <div className="flex items-center gap-2">
+                <button onClick={() => atualizarRegistro((r) => ({ ...r, quantidadeCigarros: String(Math.max(0, (parseInt(r.quantidadeCigarros) || 0) - 1)) }))} className="w-7 h-7 rounded-md border border-slate-700 text-slate-300 flex items-center justify-center active:opacity-70">−</button>
+                <span className="text-sm font-medium text-white w-6 text-center">{registro.quantidadeCigarros || 0}</span>
+                <button onClick={() => atualizarRegistro((r) => ({ ...r, quantidadeCigarros: String((parseInt(r.quantidadeCigarros) || 0) + 1) }))} className="w-7 h-7 rounded-md border border-slate-700 text-slate-300 flex items-center justify-center active:opacity-70">+</button>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center gap-1.5 mt-3">
             <Flame size={13} className="text-amber-400" />
             <p className="text-xs text-slate-400">Sequência sem fumar: {streak} dias · toque de novo pra desmarcar</p>
           </div>
         </Painel>
       )}
+
+      {perfil.acompanharBebida !== false && (
+        <Painel Icone={Wine} corIcone={registro.bebeu === false ? "text-emerald-400" : registro.bebeu === true ? "text-rose-400" : "text-slate-400"}>
+          <Rotulo className="!text-slate-300 mb-3">Bebida alcoólica</Rotulo>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => atualizarRegistro((r) => ({ ...r, bebeu: r.bebeu === false ? null : false }))}
+              className={`rounded-lg py-3 text-sm font-medium border transition active:opacity-80 ${registro.bebeu === false ? "bg-emerald-500 text-white border-emerald-500" : "border-slate-700 text-slate-300"}`}
+            >
+              Não bebi
+            </button>
+            <button
+              onClick={() => atualizarRegistro((r) => ({ ...r, bebeu: r.bebeu === true ? null : true }))}
+              className={`rounded-lg py-3 text-sm font-medium border transition active:opacity-80 ${registro.bebeu === true ? "bg-rose-500 text-white border-rose-500" : "border-slate-700 text-slate-300"}`}
+            >
+              Bebi
+            </button>
+          </div>
+          {registro.bebeu === true && (
+            <div className="mt-3 space-y-2">
+              <CampoSelect value={registro.bebida.tipo} onChange={(e) => atualizarRegistro((r) => ({ ...r, bebida: { ...r.bebida, tipo: e.target.value } }))}>
+                <option value="">Qual bebida?</option>
+                {TIPOS_BEBIDA.map((t) => <option key={t} value={t}>{t}</option>)}
+              </CampoSelect>
+              <Campo placeholder="Quantidade (ex: 2 latas, 3 doses)" value={registro.bebida.quantidade} onChange={(e) => atualizarRegistro((r) => ({ ...r, bebida: { ...r.bebida, quantidade: e.target.value } }))} />
+            </div>
+          )}
+        </Painel>
+      )}
+
+
 
       <Painel Icone={Award} corIcone="text-indigo-400">
         <Sutil className="!text-slate-400 text-sm">Nível {nivelAtual.nivel}</Sutil>
@@ -925,7 +1102,17 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
               <Dumbbell size={15} className="text-indigo-500" />
               <Rotulo>Atividade física</Rotulo>
             </div>
-            <BotaoToggle ativo={registro.atividadeFisica.feita} corAtiva="bg-emerald-500 text-white" onClick={() => atualizarRegistro((r) => ({ ...r, atividadeFisica: { ...r.atividadeFisica, feita: !r.atividadeFisica.feita } }))}>
+            <BotaoToggle
+              ativo={registro.atividadeFisica.feita}
+              corAtiva="bg-emerald-500 text-white"
+              onClick={() =>
+                atualizarRegistro((r) =>
+                  r.atividadeFisica.feita
+                    ? { ...r, atividadeFisica: { feita: false, tipo: "", minutos: "" } }
+                    : { ...r, atividadeFisica: { ...r.atividadeFisica, feita: true } }
+                )
+              }
+            >
               {registro.atividadeFisica.feita ? "Feita" : "Marcar"}
             </BotaoToggle>
           </div>
@@ -953,7 +1140,14 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
               {registro.horaDormiu ? (sonoOk ? "dentro da meta" : "fora da meta") : ""}
             </span>
           </div>
-          <Campo type="time" value={registro.horaDormiu} onChange={(e) => atualizarRegistro((r) => ({ ...r, horaDormiu: e.target.value }))} />
+          <div className="flex gap-2">
+            <Campo type="time" value={registro.horaDormiu} onChange={(e) => atualizarRegistro((r) => ({ ...r, horaDormiu: e.target.value }))} className="flex-1 min-w-0" />
+            {registro.horaDormiu && (
+              <button onClick={() => atualizarRegistro((r) => ({ ...r, horaDormiu: "" }))} className={`px-3 rounded-lg border text-xs transition active:opacity-70 ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-500"}`}>
+                Limpar
+              </button>
+            )}
+          </div>
           <Sutil className="text-xs mt-2 block">Meta: {metas.horaDormirMeta || "não definida"}</Sutil>
         </Cartao>
 
@@ -978,17 +1172,31 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
         </Cartao>
 
         <Cartao className="mt-3">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center mb-3">
             <div className="flex items-center gap-2">
               <Droplets size={15} className="text-indigo-500" />
               <Rotulo>Água</Rotulo>
             </div>
-            <span className="text-sm text-slate-500 font-medium">{(registro.aguaCopos * 0.25).toFixed(2)} L</span>
+            <span className="text-sm text-blue-500 font-medium">{(totalAguaMl / 1000).toFixed(2)} L</span>
           </div>
-          <div className="flex gap-2 mt-3">
-            <button onClick={() => atualizarRegistro((r) => ({ ...r, aguaCopos: Math.max(0, r.aguaCopos - 1) }))} className={`w-9 h-9 rounded-lg border transition active:opacity-70 ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-500"}`}>−</button>
-            <div className={`flex-1 flex items-center justify-center text-sm ${escuro ? "text-slate-300" : "text-slate-600"}`}>{registro.aguaCopos} copos (250ml)</div>
-            <button onClick={() => atualizarRegistro((r) => ({ ...r, aguaCopos: r.aguaCopos + 1 }))} className={`w-9 h-9 rounded-lg border transition active:opacity-70 ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-500"}`}>+</button>
+          <div className="flex gap-2 mb-3">
+            <div className="flex-1 min-w-0">
+              <Campo placeholder="ml (ex: 300)" type="number" value={novaAgua} onChange={(e) => setNovaAgua(e.target.value)} />
+            </div>
+            <button onClick={adicionarAgua} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-4 text-sm font-medium transition active:opacity-80">Adicionar</button>
+          </div>
+          <div className="flex gap-2 mb-3">
+            {[200, 300, 500].map((ml) => (
+              <button key={ml} onClick={() => adicionarAguaRapido(ml)} className={`text-xs px-3 py-1.5 rounded-md border transition active:opacity-70 ${escuro ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-500"}`}>+{ml}ml</button>
+            ))}
+          </div>
+          <div className="space-y-2">
+            {registro.aguaEntradas.map((a) => (
+              <div key={a.id} className="flex items-center justify-between text-sm">
+                <span className={escuro ? "text-slate-200" : "text-slate-700"}>{a.ml} ml</span>
+                <button onClick={() => removerAgua(a.id)} className="text-slate-400">✕</button>
+              </div>
+            ))}
           </div>
         </Cartao>
 
@@ -1049,12 +1257,13 @@ function TabMental({ registro, atualizarRegistro }) {
             </button>
           ))}
         </div>
-        <div className="flex justify-between items-center mb-2">
-          <Sutil className="text-sm">Ajuste fino</Sutil>
-          <span className="text-sm font-medium text-indigo-500">{registro.humorPercent}%</span>
-        </div>
-        <input type="range" min="0" max="100" value={registro.humorPercent} onChange={(e) => atualizarRegistro((r) => ({ ...r, humorPercent: parseInt(e.target.value), humorEmoji: "" }))} className="w-full accent-indigo-600" />
-        <CampoArea placeholder="Escreva livremente sobre o seu dia..." value={registro.notaHumor} onChange={(e) => atualizarRegistro((r) => ({ ...r, notaHumor: e.target.value }))} className="mt-3 h-28" />
+        <CampoDiario
+          placeholder="Escreva livremente sobre o seu dia..."
+          entradas={registro.notasHumor}
+          onAdicionar={(texto) => atualizarRegistro((r) => ({ ...r, notasHumor: [...r.notasHumor, { id: Date.now(), texto, hora: horaAgora() }] }))}
+          onRemover={(id) => atualizarRegistro((r) => ({ ...r, notasHumor: r.notasHumor.filter((n) => n.id !== id) }))}
+          className="mt-3 h-28"
+        />
       </Cartao>
     </>
   );
@@ -1062,7 +1271,7 @@ function TabMental({ registro, atualizarRegistro }) {
 
 function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas }) {
   const { escuro } = useTema();
-  const [novoGasto, setNovoGasto] = useState({ desc: "", valor: "" });
+  const [novoGasto, setNovoGasto] = useState({ desc: "", valor: "", categoria: "Alimentação" });
   const [novoInvest, setNovoInvest] = useState({ valor: "" });
   const totalGasto = registro.gastos.reduce((s, g) => s + g.valor, 0);
   const totalInvestido = registro.investimentos.reduce((s, i) => s + i.valor, 0);
@@ -1071,8 +1280,8 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas }) {
 
   function adicionarGasto() {
     if (!novoGasto.desc || !novoGasto.valor) return;
-    atualizarRegistro((r) => ({ ...r, gastos: [...r.gastos, { id: Date.now(), desc: novoGasto.desc, valor: parseFloat(novoGasto.valor) }] }));
-    setNovoGasto({ desc: "", valor: "" });
+    atualizarRegistro((r) => ({ ...r, gastos: [...r.gastos, { id: Date.now(), desc: novoGasto.desc, valor: parseFloat(novoGasto.valor), categoria: novoGasto.categoria }] }));
+    setNovoGasto({ desc: "", valor: "", categoria: novoGasto.categoria });
   }
   function removerGasto(id) { atualizarRegistro((r) => ({ ...r, gastos: r.gastos.filter((g) => g.id !== id) })); }
   function adicionarInvestimento() {
@@ -1109,14 +1318,26 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas }) {
       <Cartao className="mt-6">
         <Rotulo className="mb-3">Adicionar gasto</Rotulo>
         <Campo placeholder="Com o que? (ex: almoço)" value={novoGasto.desc} onChange={(e) => setNovoGasto({ ...novoGasto, desc: e.target.value })} className="mb-2" />
-        <Campo placeholder="Valor (ex: 35.90)" type="number" value={novoGasto.valor} onChange={(e) => setNovoGasto({ ...novoGasto, valor: e.target.value })} className="mb-3" />
+        <div className="flex gap-2 mb-3">
+          <div className="flex-1 min-w-0">
+            <Campo placeholder="Valor (ex: 35.90)" type="number" value={novoGasto.valor} onChange={(e) => setNovoGasto({ ...novoGasto, valor: e.target.value })} />
+          </div>
+          <div className="w-36 shrink-0">
+            <CampoSelect value={novoGasto.categoria} onChange={(e) => setNovoGasto({ ...novoGasto, categoria: e.target.value })}>
+              {CATEGORIAS_GASTO.map((c) => <option key={c} value={c}>{c}</option>)}
+            </CampoSelect>
+          </div>
+        </div>
         <button onClick={adicionarGasto} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2 text-sm font-medium transition active:opacity-80">Adicionar</button>
       </Cartao>
 
       <div className="mt-4 space-y-2">
         {registro.gastos.map((g) => (
           <div key={g.id} className={`flex items-center justify-between rounded-lg border p-3 ${escuro ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
-            <span className={`text-sm ${escuro ? "text-slate-200" : "text-slate-700"}`}>{g.desc}</span>
+            <div>
+              <span className={`text-sm ${escuro ? "text-slate-200" : "text-slate-700"}`}>{g.desc}</span>
+              <span className={`text-[10px] ml-2 px-1.5 py-0.5 rounded ${escuro ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-500"}`}>{g.categoria || "Outro"}</span>
+            </div>
             <div className="flex items-center gap-3">
               <span className={`text-sm font-medium ${escuro ? "text-white" : "text-slate-900"}`}>R$ {g.valor.toFixed(2).replace(".", ",")}</span>
               <button onClick={() => removerGasto(g.id)} className="text-slate-400 text-sm">✕</button>
@@ -1152,7 +1373,7 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas }) {
   );
 }
 
-function TabVida({ registro, atualizarRegistro }) {
+function TabVida({ registro, atualizarRegistro, perfil }) {
   const trabalhoPercent = Math.round((registro.trabalhoClassificacao / (NIVEL_TRABALHO.length - 1)) * 100);
 
   return (
@@ -1186,33 +1407,55 @@ function TabVida({ registro, atualizarRegistro }) {
 
         <Cartao className="mt-3">
           <Rotulo className="mb-2">O que você aprendeu hoje?</Rotulo>
-          <CampoArea placeholder="Compartilhe algo novo que aprendeu..." value={registro.notaAprendizado} onChange={(e) => atualizarRegistro((r) => ({ ...r, notaAprendizado: e.target.value }))} className="h-24" />
+          <CampoDiario
+            placeholder="Compartilhe algo novo que aprendeu..."
+            entradas={registro.notasAprendizado}
+            onAdicionar={(texto) => atualizarRegistro((r) => ({ ...r, notasAprendizado: [...r.notasAprendizado, { id: Date.now(), texto, hora: horaAgora() }] }))}
+            onRemover={(id) => atualizarRegistro((r) => ({ ...r, notasAprendizado: r.notasAprendizado.filter((n) => n.id !== id) }))}
+            className="h-24"
+          />
         </Cartao>
 
-        <Cartao className="mt-3">
-          <div className="flex items-center gap-2 mb-2">
-            <BookOpen size={15} className="text-indigo-500" />
-            <Rotulo>Leitura</Rotulo>
-          </div>
-          <Campo placeholder="Qual livro?" value={registro.leituraLivro} onChange={(e) => atualizarRegistro((r) => ({ ...r, leituraLivro: e.target.value }))} className="mb-2" />
-          <Campo placeholder="Quantas páginas leu hoje?" type="number" value={registro.leituraPaginas} onChange={(e) => atualizarRegistro((r) => ({ ...r, leituraPaginas: e.target.value }))} />
-        </Cartao>
+        {perfil.acompanharLeitura !== false && (
+          <Cartao className="mt-3">
+            <div className="flex items-center gap-2 mb-2">
+              <BookOpen size={15} className="text-indigo-500" />
+              <Rotulo>Leitura</Rotulo>
+            </div>
+            <Campo placeholder="Qual livro?" value={registro.leituraLivro} onChange={(e) => atualizarRegistro((r) => ({ ...r, leituraLivro: e.target.value }))} className="mb-2" />
+            <Campo placeholder="Quantas páginas leu hoje?" type="number" value={registro.leituraPaginas} onChange={(e) => atualizarRegistro((r) => ({ ...r, leituraPaginas: e.target.value }))} />
+          </Cartao>
+        )}
       </div>
 
-      <div className="mt-8">
-        <TituloSecao Icone={Heart}>Relacionamento</TituloSecao>
-        <Cartao>
-          <Rotulo className="mb-2">Esposa — como foi seu dia com ela?</Rotulo>
-          <CampoArea placeholder="Escreva livremente..." value={registro.notaRelacionamento} onChange={(e) => atualizarRegistro((r) => ({ ...r, notaRelacionamento: e.target.value }))} className="h-24" />
-        </Cartao>
-        <Cartao className="mt-3">
-          <div className="flex items-center gap-2 mb-2">
-            <Users size={15} className="text-indigo-500" />
-            <Rotulo>Família — como foi com a família em geral?</Rotulo>
-          </div>
-          <CampoArea placeholder="Escreva livremente..." value={registro.notaFamilia} onChange={(e) => atualizarRegistro((r) => ({ ...r, notaFamilia: e.target.value }))} className="h-24" />
-        </Cartao>
-      </div>
+      {perfil.acompanharRelacionamento !== false && (
+        <div className="mt-8">
+          <TituloSecao Icone={Heart}>Relacionamento</TituloSecao>
+          <Cartao>
+            <Rotulo className="mb-2">Esposa — como foi seu dia com ela?</Rotulo>
+            <CampoDiario
+              placeholder="Escreva livremente..."
+              entradas={registro.notasRelacionamento}
+              onAdicionar={(texto) => atualizarRegistro((r) => ({ ...r, notasRelacionamento: [...r.notasRelacionamento, { id: Date.now(), texto, hora: horaAgora() }] }))}
+              onRemover={(id) => atualizarRegistro((r) => ({ ...r, notasRelacionamento: r.notasRelacionamento.filter((n) => n.id !== id) }))}
+              className="h-24"
+            />
+          </Cartao>
+          <Cartao className="mt-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Users size={15} className="text-indigo-500" />
+              <Rotulo>Família — como foi com a família em geral?</Rotulo>
+            </div>
+            <CampoDiario
+              placeholder="Escreva livremente..."
+              entradas={registro.notasFamilia}
+              onAdicionar={(texto) => atualizarRegistro((r) => ({ ...r, notasFamilia: [...r.notasFamilia, { id: Date.now(), texto, hora: horaAgora() }] }))}
+              onRemover={(id) => atualizarRegistro((r) => ({ ...r, notasFamilia: r.notasFamilia.filter((n) => n.id !== id) }))}
+              className="h-24"
+            />
+          </Cartao>
+        </div>
+      )}
     </>
   );
 }
@@ -1229,7 +1472,7 @@ function TabMetas({ dadosPorDia, metas, atualizarMetas, registro }) {
   const progressoAtividade = metaAtividade > 0 ? Math.round((diasComAtividadeMes / metaAtividade) * 100) : 0;
   const pesoAtual = parseFloat(registro.peso) || null;
   const pesoMeta = parseFloat(metas.pesoMeta) || null;
-  const aguaHojeLitros = (registro.aguaCopos || 0) * 0.25;
+  const aguaHojeLitros = (registro.aguaEntradas || []).reduce((s, a) => s + a.ml, 0) / 1000;
   const metaAgua = parseFloat(metas.aguaMetaLitros) || 0;
 
   return (
@@ -1242,7 +1485,7 @@ function TabMetas({ dadosPorDia, metas, atualizarMetas, registro }) {
 
       <Cartao className="mt-6">
         <Rotulo className="mb-2">Meta pessoal</Rotulo>
-        <CampoArea placeholder="Escreva uma meta pessoal para você..." value={metas.metaPessoal} onChange={(e) => atualizarMetas((m) => ({ ...m, metaPessoal: e.target.value }))} className="h-20" />
+        <CampoMetaPessoal valor={metas.metaPessoal} onSalvar={(v) => atualizarMetas((m) => ({ ...m, metaPessoal: v }))} />
       </Cartao>
 
       <Cartao className="mt-4">
@@ -1363,6 +1606,16 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
     }
   }
   const dadosPizza = Object.entries(contagemAtividades).map(([nome, valor]) => ({ nome, valor }));
+
+  const gastosPorCategoria = {};
+  for (const r of Object.values(dadosPorDia)) {
+    for (const g of r.gastos || []) {
+      const cat = g.categoria || "Outro";
+      gastosPorCategoria[cat] = (gastosPorCategoria[cat] || 0) + g.valor;
+    }
+  }
+  const dadosPizzaGastos = Object.entries(gastosPorCategoria).map(([nome, valor]) => ({ nome, valor: Math.round(valor) }));
+
   const corGrade = escuro ? "#1e293b" : "#f1f5f9";
   const corTexto = escuro ? "#64748b" : "#94a3b8";
 
@@ -1473,6 +1726,23 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
             </>
           )}
 
+          {dadosPizzaGastos.length > 0 && (
+            <div className="mt-6">
+              <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Gastos por categoria</h2>
+              <Cartao className="h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={dadosPizzaGastos} dataKey="valor" nameKey="nome" cx="50%" cy="50%" outerRadius={70} label={{ fontSize: 11, fill: corTexto }}>
+                      {dadosPizzaGastos.map((_, i) => <Cell key={i} fill={CORES_GRAFICO[i % CORES_GRAFICO.length]} />)}
+                    </Pie>
+                    <Tooltip formatter={(v) => `R$ ${v}`} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </Cartao>
+            </div>
+          )}
+
           {dadosPizza.length > 0 && (
             <div className="mt-6">
               <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Atividades mais praticadas</h2>
@@ -1556,7 +1826,7 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
                   <Sutil>Gasto: R$ {gastoTotal.toFixed(2).replace(".", ",")}</Sutil>
                   <Sutil>Investido: R$ {investidoTotal.toFixed(2).replace(".", ",")}</Sutil>
                   <Sutil>Alimentação: {kcalTotal} kcal</Sutil>
-                  <Sutil>Água: {((r.aguaCopos || 0) * 0.25).toFixed(2)} L</Sutil>
+                  <Sutil>Água: {(((r.aguaEntradas || []).reduce((s, a) => s + a.ml, 0)) / 1000).toFixed(2)} L</Sutil>
                 </div>
               </Cartao>
             );
