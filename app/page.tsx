@@ -1754,6 +1754,7 @@ function TabTarefas({ dadosPorDia, atualizarDia, googleConectado, googleFetch, c
   const [novaDuracao, setNovaDuracao] = useState("30");
   const [permissao, setPermissao] = useState(typeof Notification !== "undefined" ? Notification.permission : "unsupported");
   const [sincronizando, setSincronizando] = useState(false);
+  const [erroSync, setErroSync] = useState("");
 
   const celulas = celulasDoMes(mesVisivel);
   const tarefasDoDia = dadosPorDia[diaSelecionado]?.tarefas || [];
@@ -1781,8 +1782,13 @@ function TabTarefas({ dadosPorDia, atualizarDia, googleConectado, googleFetch, c
         const json = await resp.json();
         if (json.googleEventId) {
           atualizarDia(diaSelecionado, (r) => ({ ...r, tarefas: r.tarefas.map((t) => (t.id === id ? { ...t, googleEventId: json.googleEventId } : t)) }));
+          setErroSync("");
+        } else {
+          setErroSync("A tarefa foi salva no app, mas não conseguiu sincronizar com o Google agora.");
         }
-      } catch {}
+      } catch (e) {
+        setErroSync("A tarefa foi salva no app, mas não conseguiu sincronizar com o Google agora.");
+      }
     }
   }
 
@@ -1910,8 +1916,8 @@ function TabTarefas({ dadosPorDia, atualizarDia, googleConectado, googleFetch, c
                 )}
               </div>
             </div>
-            <button onClick={adicionarTarefa} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-3 transition active:opacity-80">
-              <Plus size={16} />
+            <button onClick={adicionarTarefa} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg w-12 shrink-0 flex items-center justify-center transition active:opacity-80">
+              <Plus size={22} />
             </button>
           </div>
 
@@ -1926,6 +1932,13 @@ function TabTarefas({ dadosPorDia, atualizarDia, googleConectado, googleFetch, c
                 <option value="90">1h30</option>
                 <option value="120">2 horas</option>
               </CampoSelect>
+            </div>
+          )}
+
+          {erroSync && (
+            <div className="flex items-center justify-between gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2.5 mb-3">
+              <p className="text-xs text-amber-500">{erroSync}</p>
+              <button onClick={() => setErroSync("")} className="text-amber-500 shrink-0">✕</button>
             </div>
           )}
 
