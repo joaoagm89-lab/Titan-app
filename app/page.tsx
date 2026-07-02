@@ -418,6 +418,7 @@ export default function Home() {
   const [popupMes, setPopupMes] = useState(null);
   const [sessao, setSessao] = useState(null);
   const [carregandoAuth, setCarregandoAuth] = useState(true);
+  const [googleConectado, setGoogleConectado] = useState(false);
   const [dadosLocaisDetectados, setDadosLocaisDetectados] = useState(null);
 
   useEffect(() => {
@@ -427,12 +428,17 @@ export default function Home() {
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setSessao(session);
+      if (!session) {
+        setCarregado(false);
+        setPerfil(null);
+        setDadosPorDia({});
+      }
     });
     return () => listener.subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (!sessao) return;
+    if (!sessao || carregado) return;
     (async () => {
       const { data } = await supabase
         .from("titan_dados")
@@ -453,7 +459,7 @@ export default function Home() {
       }
       setCarregado(true);
     })();
-  }, [sessao]);
+  }, [sessao, carregado]);
 
   useEffect(() => {
     if (!carregado || !sessao) return;
@@ -503,6 +509,19 @@ export default function Home() {
     }
     if (ultimo !== hoje) setPerfil((p) => ({ ...p, ultimoAcesso: hoje }));
   }, [carregado, perfil, verificouAcesso, dadosPorDia]);
+
+  useEffect(() => {
+    if (!sessao) return;
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      try {
+        const resp = await fetch("/api/google/status", { headers: { Authorization: `Bearer ${token}` } });
+        const json = await resp.json();
+        setGoogleConectado(!!json.conectado);
+      } catch {}
+    })();
+  }, [sessao]);
 
   const temaValue = { escuro, alternar: () => setEscuro((e) => !e) };
 
@@ -586,6 +605,24 @@ export default function Home() {
     }));
   }
 
+  async function googleFetch(caminho, opcoes = {}) {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    return fetch(caminho, {
+      ...opcoes,
+      headers: { ...(opcoes.headers || {}), Authorization: `Bearer ${token}` },
+    });
+  }
+
+  function conectarGoogle() {
+    window.location.href = `/api/google/connect?uid=${sessao.user.id}`;
+  }
+
+  async function desconectarGoogle() {
+    await googleFetch("/api/google/disconnect", { method: "POST" });
+    setGoogleConectado(false);
+  }
+
   const TABS = [
     { id: "saude", label: "Saúde", Icone: Activity },
     { id: "mental", label: "Mental", Icone: Brain },
@@ -652,7 +689,16 @@ export default function Home() {
               <TabFinancas registro={registro} atualizarRegistro={atualizarRegistro} metas={metas} atualizarMetas={atualizarMetas} />
             )}
             {aba === "vida" && <TabVida registro={registro} atualizarRegistro={atualizarRegistro} perfil={perfil} />}
-            {aba === "tarefas" && <TabTarefas dadosPorDia={dadosPorDia} atualizarDia={atualizarDia} />}
+            {aba === "tarefas" && (
+              <TabTarefas
+                dadosPorDia={dadosPorDia}
+                atualizarDia={atualizarDia}
+                googleConectado={googleConectado}
+                googleFetch={googleFetch}
+                conectarGoogle={conectarGoogle}
+                desconectarGoogle={desconectarGoogle}
+              />
+            )}
             {aba === "metas" && (
               <TabMetas dadosPorDia={dadosPorDia} metas={metas} atualizarMetas={atualizarMetas} registro={registro} />
             )}
@@ -1699,13 +1745,15 @@ function TabMetas({ dadosPorDia, metas, atualizarMetas, registro }) {
   );
 }
 
-function TabTarefas({ dadosPorDia, atualizarDia }) {
+function TabTarefas({ dadosPorDia, atualizarDia, googleConectado, googleFetch, conectarGoogle, desconectarGoogle }) {
   const { escuro } = useTema();
   const [mesVisivel, setMesVisivel] = useState(mesDoIso(hojeISO()));
   const [diaSelecionado, setDiaSelecionado] = useState(hojeISO());
   const [novaTarefa, setNovaTarefa] = useState("");
   const [novoHorario, setNovoHorario] = useState("");
+  const [novaDuracao, setNovaDuracao] = useState("30");
   const [permissao, setPermissao] = useState(typeof Notification !== "undefined" ? Notification.permission : "unsupported");
+  const [sincronizando, setSincronizando] = useState(false);
 
   const celulas = celulasDoMes(mesVisivel);
   const tarefasDoDia = dadosPorDia[diaSelecionado]?.tarefas || [];
@@ -1714,22 +1762,65 @@ function TabTarefas({ dadosPorDia, atualizarDia }) {
   function temTarefas(iso) {
     return (dadosPorDia[iso]?.tarefas || []).length > 0;
   }
-  function adicionarTarefa() {
+
+  async function adicionarTarefa() {
     if (!novaTarefa.trim()) return;
-    atualizarDia(diaSelecionado, (r) => ({ ...r, tarefas: [...r.tarefas, { id: Date.now(), texto: novaTarefa.trim(), feita: false, horario: novoHorario }] }));
+    const id = Date.now();
+    const nova = { id, texto: novaTarefa.trim(), feita: false, horario: novoHorario, duracaoMinutos: novoHorario ? (parseInt(novaDuracao) || 30) : null, googleEventId: null };
+    atualizarDia(diaSelecionado, (r) => ({ ...r, tarefas: [...r.tarefas, nova] }));
     setNovaTarefa("");
     setNovoHorario("");
+
+    if (googleConectado) {
+      try {
+        const resp = await googleFetch("/api/google/evento", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data: diaSelecionado, hora: nova.horario, texto: nova.texto, duracaoMinutos: nova.duracaoMinutos }),
+        });
+        const json = await resp.json();
+        if (json.googleEventId) {
+          atualizarDia(diaSelecionado, (r) => ({ ...r, tarefas: r.tarefas.map((t) => (t.id === id ? { ...t, googleEventId: json.googleEventId } : t)) }));
+        }
+      } catch {}
+    }
   }
+
   function toggleTarefa(id) {
     atualizarDia(diaSelecionado, (r) => ({ ...r, tarefas: r.tarefas.map((t) => (t.id === id ? { ...t, feita: !t.feita } : t)) }));
   }
-  function removerTarefa(id) {
-    atualizarDia(diaSelecionado, (r) => ({ ...r, tarefas: r.tarefas.filter((t) => t.id !== id) }));
+
+  function removerTarefa(tarefa) {
+    atualizarDia(diaSelecionado, (r) => ({ ...r, tarefas: r.tarefas.filter((t) => t.id !== tarefa.id) }));
+    if (googleConectado && tarefa.googleEventId) {
+      googleFetch(`/api/google/evento?id=${tarefa.googleEventId}`, { method: "DELETE" }).catch(() => {});
+    }
   }
+
   function ativarLembretes() {
     if (typeof Notification === "undefined") return;
     Notification.requestPermission().then((p) => setPermissao(p));
   }
+
+  async function sincronizarComGoogle() {
+    setSincronizando(true);
+    const diasDoMes = celulas.filter(Boolean);
+    const inicio = diasDoMes[0];
+    const fim = diasDoMes[diasDoMes.length - 1];
+    try {
+      const resp = await googleFetch(`/api/google/importar?inicio=${inicio}&fim=${fim}`);
+      const json = await resp.json();
+      (json.eventos || []).forEach((ev) => {
+        atualizarDia(ev.data, (r) => {
+          const jaExiste = r.tarefas.some((t) => t.googleEventId === ev.googleEventId);
+          if (jaExiste) return r;
+          return { ...r, tarefas: [...r.tarefas, { id: Date.now() + Math.random(), texto: ev.texto, feita: false, horario: ev.horario, googleEventId: ev.googleEventId }] };
+        });
+      });
+    } catch {}
+    setSincronizando(false);
+  }
+
 
   return (
     <>
@@ -1738,6 +1829,25 @@ function TabTarefas({ dadosPorDia, atualizarDia }) {
         <Sutil className="!text-slate-400 text-sm">Calendário</Sutil>
         <p className="text-lg font-semibold">Organize seus dias</p>
       </Painel>
+
+      <Cartao className="mt-4">
+        {googleConectado ? (
+          <div className="flex items-center justify-between gap-2">
+            <Sutil className="text-xs">Conectado à Google Agenda</Sutil>
+            <div className="flex gap-2 shrink-0">
+              <button onClick={sincronizarComGoogle} disabled={sincronizando} className={`text-xs px-3 py-1.5 rounded-md border transition active:opacity-70 ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
+                {sincronizando ? "..." : "Sincronizar"}
+              </button>
+              <button onClick={desconectarGoogle} className="text-xs px-3 py-1.5 rounded-md text-rose-500">Desconectar</button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-2">
+            <Sutil className="text-xs">Conecte pra sincronizar com sua Google Agenda</Sutil>
+            <button onClick={conectarGoogle} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3 py-1.5 rounded-md font-medium shrink-0 transition active:opacity-80">Conectar</button>
+          </div>
+        )}
+      </Cartao>
 
       {permissao !== "granted" && permissao !== "unsupported" && (
         <Cartao className="mt-4">
@@ -1782,7 +1892,7 @@ function TabTarefas({ dadosPorDia, atualizarDia }) {
       <div className="mt-6">
         <TituloSecao Icone={CalendarDays}>{formatarData(diaSelecionado)}</TituloSecao>
         <Cartao>
-          <div className="flex gap-2 mb-3">
+          <div className="flex gap-2 mb-2">
             <div className="flex-1 min-w-0">
               <Campo placeholder="Nova tarefa..." value={novaTarefa} onChange={(e) => setNovaTarefa(e.target.value)} onKeyDown={(e) => e.key === "Enter" && adicionarTarefa()} />
             </div>
@@ -1799,6 +1909,20 @@ function TabTarefas({ dadosPorDia, atualizarDia }) {
             </button>
           </div>
 
+          {novoHorario && (
+            <div className="flex items-center gap-2 mb-3">
+              <Sutil className="text-xs">Duração:</Sutil>
+              <CampoSelect value={novaDuracao} onChange={(e) => setNovaDuracao(e.target.value)} className="w-32">
+                <option value="15">15 minutos</option>
+                <option value="30">30 minutos</option>
+                <option value="45">45 minutos</option>
+                <option value="60">1 hora</option>
+                <option value="90">1h30</option>
+                <option value="120">2 horas</option>
+              </CampoSelect>
+            </div>
+          )}
+
           {tarefasDoDia.length === 0 && <Sutil className="text-sm">Nenhuma tarefa pra esse dia.</Sutil>}
 
           <div className="space-y-2">
@@ -1809,11 +1933,15 @@ function TabTarefas({ dadosPorDia, atualizarDia }) {
                     {t.feita ? "✓" : ""}
                   </span>
                   <span className="min-w-0">
-                    {t.horario && <span className="text-[11px] text-indigo-500 font-medium block">{t.horario}</span>}
+                    {t.horario && (
+                      <span className="text-[11px] text-indigo-500 font-medium block">
+                        {t.horario}{t.duracaoMinutos ? ` · ${t.duracaoMinutos >= 60 ? `${Math.floor(t.duracaoMinutos / 60)}h${t.duracaoMinutos % 60 ? t.duracaoMinutos % 60 : ""}` : `${t.duracaoMinutos}min`}` : ""}
+                      </span>
+                    )}
                     <span className={`text-sm break-words ${t.feita ? "line-through text-slate-400" : escuro ? "text-slate-200" : "text-slate-700"}`}>{t.texto}</span>
                   </span>
                 </button>
-                <button onClick={() => removerTarefa(t.id)} className="text-slate-400 shrink-0">✕</button>
+                <button onClick={() => removerTarefa(t)} className="text-slate-400 shrink-0">✕</button>
               </div>
             ))}
           </div>
