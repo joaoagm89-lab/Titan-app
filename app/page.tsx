@@ -10,7 +10,7 @@ import {
   Activity, Brain, Wallet, Compass, Target, BarChart3,
   Sun, Moon, ChevronLeft, ChevronRight, Pencil, Cigarette, CigaretteOff, CalendarDays, Plus,
   Dumbbell, Droplets, Scale, UtensilsCrossed, TrendingUp, Briefcase,
-  BookOpen, Heart, Users, Flame, Timer, Zap, PiggyBank, Award, LogOut, Wine,
+  BookOpen, Heart, Users, Flame, Timer, Zap, PiggyBank, Award, LogOut, Wine, Receipt,
 } from "lucide-react";
 
 const TIPOS_ATIVIDADE = [
@@ -88,7 +88,14 @@ const METAS_PADRAO = {
   metaPessoal: "",
   atividadeFisicaMetaMes: "",
   aguaMetaLitros: "",
+  gastosFixos: {},
 };
+
+const GASTOS_FIXOS_PADRAO = [
+  "Aluguel", "Condomínio", "Luz", "Água", "Internet", "Telefone/Celular",
+  "Pensão", "Plano de saúde", "Streaming/Assinaturas", "Seguro",
+  "Financiamento/Prestação", "IPTU/IPVA", "Escola/Faculdade", "Outro",
+];
 
 function hojeISO() { return new Date().toISOString().slice(0, 10); }
 function somarDias(iso, delta) {
@@ -1465,6 +1472,20 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas }) {
   const totalInvestido = registro.investimentos.reduce((s, i) => s + i.valor, 0);
   const meta = parseFloat(metas.gastoDiario) || 0;
   const dentroDaMeta = meta > 0 ? totalGasto <= meta : null;
+  const gastosFixos = metas.gastosFixos || {};
+  const totalFixos = Object.values(gastosFixos).reduce((s, v) => s + (parseFloat(v) || 0), 0);
+
+  function toggleGastoFixo(nome) {
+    atualizarMetas((m) => {
+      const novo = { ...(m.gastosFixos || {}) };
+      if (nome in novo) delete novo[nome];
+      else novo[nome] = "";
+      return { ...m, gastosFixos: novo };
+    });
+  }
+  function atualizarValorFixo(nome, valor) {
+    atualizarMetas((m) => ({ ...m, gastosFixos: { ...(m.gastosFixos || {}), [nome]: valor } }));
+  }
 
   function adicionarGasto() {
     if (!novoGasto.desc || !novoGasto.valor) return;
@@ -1555,6 +1576,40 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas }) {
                 </div>
               </div>
             ))}
+          </div>
+        </Cartao>
+      </div>
+
+      <div className="mt-8">
+        <TituloSecao Icone={Receipt}>Gastos fixos</TituloSecao>
+        <Sutil className="text-xs block mb-3">Não entra na meta de gasto diário — é só pra acompanhar o total fixo do mês.</Sutil>
+        <Cartao>
+          <p className="mb-4">
+            <span className={`text-2xl font-semibold ${escuro ? "text-white" : "text-slate-900"}`}>R$ {totalFixos.toFixed(2).replace(".", ",")}</span>
+            <span className="text-sm text-slate-400"> /mês</span>
+          </p>
+          <div className="space-y-2">
+            {GASTOS_FIXOS_PADRAO.map((nome) => {
+              const selecionado = nome in gastosFixos;
+              return (
+                <div key={nome} className={`rounded-lg border p-3 ${escuro ? "border-slate-800" : "border-slate-100"}`}>
+                  <button onClick={() => toggleGastoFixo(nome)} className="w-full flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <span className={`w-5 h-5 rounded-md border flex items-center justify-center text-xs shrink-0 ${selecionado ? "bg-indigo-600 border-indigo-600 text-white" : escuro ? "border-slate-600" : "border-slate-300"}`}>
+                        {selecionado ? "✓" : ""}
+                      </span>
+                      <span className={`text-sm ${escuro ? "text-slate-200" : "text-slate-700"}`}>{nome}</span>
+                    </span>
+                    {selecionado && gastosFixos[nome] && (
+                      <span className="text-sm font-medium text-slate-400">R$ {parseFloat(gastosFixos[nome] || 0).toFixed(2).replace(".", ",")}</span>
+                    )}
+                  </button>
+                  {selecionado && (
+                    <Campo type="number" placeholder="Valor mensal" value={gastosFixos[nome]} onChange={(e) => atualizarValorFixo(nome, e.target.value)} className="mt-2" />
+                  )}
+                </div>
+              );
+            })}
           </div>
         </Cartao>
       </div>
