@@ -1,6 +1,22 @@
 import { NextResponse } from "next/server";
 import { obterUsuarioAutenticado, obterAccessToken } from "../../../lib/googleAuth";
 
+function somarMinutosHora(horaStr, minutos) {
+  const [h, m] = horaStr.split(":").map(Number);
+  const totalMin = h * 60 + m + minutos;
+  const diaExtra = Math.floor(totalMin / 1440);
+  const minutosNoDia = ((totalMin % 1440) + 1440) % 1440;
+  const hh = Math.floor(minutosNoDia / 60);
+  const mm = minutosNoDia % 60;
+  return { hora: `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`, diaExtra };
+}
+
+function somarDiasSimples(dataIso, dias) {
+  const [y, m, d] = dataIso.split("-").map(Number);
+  const dt = new Date(y, m - 1, d + dias);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+
 export async function POST(request) {
   const user = await obterUsuarioAutenticado(request);
   if (!user) return NextResponse.json({ error: "não autenticado" }, { status: 401 });
@@ -12,21 +28,21 @@ export async function POST(request) {
 
   let evento;
   if (hora) {
-    const inicio = `${data}T${hora}:00`;
-    const fimData = new Date(`${data}T${hora}:00`);
-    fimData.setMinutes(fimData.getMinutes() + (parseInt(duracaoMinutos) || 30));
+    const inicio = `${data}T${hora}:00-03:00`;
+    const { hora: horaFim, diaExtra } = somarMinutosHora(hora, parseInt(duracaoMinutos) || 30);
+    const dataFim = diaExtra > 0 ? somarDiasSimples(data, diaExtra) : data;
+    const fim = `${dataFim}T${horaFim}:00-03:00`;
     evento = {
       summary: texto,
       start: { dateTime: inicio, timeZone: "America/Sao_Paulo" },
-      end: { dateTime: fimData.toISOString().slice(0, 19), timeZone: "America/Sao_Paulo" },
+      end: { dateTime: fim, timeZone: "America/Sao_Paulo" },
     };
   } else {
-    const fim = new Date(data + "T00:00:00");
-    fim.setDate(fim.getDate() + 1);
+    const fim = somarDiasSimples(data, 1);
     evento = {
       summary: texto,
       start: { date: data },
-      end: { date: fim.toISOString().slice(0, 10) },
+      end: { date: fim },
     };
   }
 
