@@ -77,7 +77,13 @@ const REGISTRO_PADRAO = {
 };
 
 const TIPOS_BEBIDA = ["Cerveja", "Vinho", "Whisky/Destilado", "Vodka", "Cachaça", "Drink", "Outro"];
-const CATEGORIAS_GASTO = ["Alimentação", "Transporte", "Lazer", "Saúde", "Outro"];
+const CATEGORIAS_GASTO = [
+  "Alimentação", "Mercado/Supermercado", "Transporte", "Combustível", "Lazer",
+  "Saúde", "Educação", "Aluguel", "Condomínio", "Luz", "Água", "Internet",
+  "Telefone/Celular", "Cartão de crédito", "Empréstimo", "Financiamento",
+  "Seguro", "IPTU/IPVA", "Streaming/Assinaturas", "Vestuário", "Presentes",
+  "Pets", "Beleza/Cuidados pessoais", "Manutenção/Casa", "Outro",
+];
 
 const METAS_PADRAO = {
   gastoDiario: "",
