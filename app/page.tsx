@@ -57,7 +57,7 @@ const REGISTRO_PADRAO = {
   quantidadeCigarros: "",
   bebeu: null,
   bebida: { tipo: "", quantidade: "" },
-  atividadeFisica: { feita: false, tipo: "", minutos: "" },
+  atividadesFisicas: [],
   horaDormiu: "",
   gastos: [],
   investimentos: [],
@@ -609,7 +609,6 @@ export default function Home() {
     return {
       ...REGISTRO_PADRAO,
       ...bruto,
-      atividadeFisica: { ...REGISTRO_PADRAO.atividadeFisica, ...(bruto?.atividadeFisica) },
       bebida: { ...REGISTRO_PADRAO.bebida, ...(bruto?.bebida) },
     };
   }
@@ -808,6 +807,11 @@ function calcularStreak(dadosPorDia, hojeIso) {
   const primeiroDia = datas[0];
   let streak = 0;
   let cursor = hojeIso;
+  const regHoje = dadosPorDia[hojeIso];
+  if (!regHoje || regHoje.fumei !== false) {
+    if (regHoje && regHoje.fumei === true) return 0;
+    cursor = somarDias(hojeIso, -1);
+  }
   while (cursor >= primeiroDia) {
     const reg = dadosPorDia[cursor];
     if (!reg || reg.fumei !== false) break;
@@ -822,7 +826,7 @@ function calcularXpTotal(dadosPorDia, metas) {
   for (const iso in dadosPorDia) {
     const reg = dadosPorDia[iso];
     if (reg.fumei === false) total += XP_NAO_FUMAR;
-    if (reg.atividadeFisica?.feita) total += XP_ATIVIDADE;
+    if ((reg.atividadesFisicas || []).length > 0) total += XP_ATIVIDADE;
     if (dormiuNaMeta(reg.horaDormiu, metas.horaDormirMeta)) total += XP_SONO_META;
   }
   return total;
@@ -981,7 +985,7 @@ function LinhaResultado({ Icone, label, ok }) {
 
 function PopupResumoDia({ data, registro, metas, onFechar }) {
   const naoFumou = registro.fumei === false;
-  const atividade = !!registro.atividadeFisica?.feita;
+  const atividade = (registro.atividadesFisicas || []).length > 0;
   const sono = dormiuNaMeta(registro.horaDormiu, metas.horaDormirMeta);
   const metaGasto = parseFloat(metas.gastoDiario) || 0;
   const gastoTotal = (registro.gastos || []).reduce((s, g) => s + g.valor, 0);
@@ -1030,7 +1034,7 @@ function PopupResumoMes({ mesIso, dadosPorDia, metas, onFechar }) {
   const investidoTotal = registros.reduce((s, r) => s + (r.investimentos || []).reduce((a, i) => a + i.valor, 0), 0);
   const metaInvest = parseFloat(metas.investimentoMensal) || 0;
   const bateuInvest = metaInvest > 0 ? investidoTotal >= metaInvest : null;
-  const diasAtividade = registros.filter((r) => r.atividadeFisica?.feita).length;
+  const diasAtividade = registros.filter((r) => (r.atividadesFisicas || []).length > 0).length;
   const metaAtividade = parseFloat(metas.atividadeFisicaMetaMes) || 0;
   const bateuAtividade = metaAtividade > 0 ? diasAtividade >= metaAtividade : null;
   const diasSemFumar = registros.filter((r) => r.fumei === false).length;
@@ -1274,12 +1278,13 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
   const { escuro } = useTema();
   const [novaRefeicao, setNovaRefeicao] = useState({ nome: "", kcal: "" });
   const [novaAgua, setNovaAgua] = useState("");
+  const [novaAtividade, setNovaAtividade] = useState({ tipo: "", minutos: "" });
   const progresso = proximoNivel
     ? Math.round(((xpTotal - nivelAtual.xpNecessario) / (proximoNivel.xpNecessario - nivelAtual.xpNecessario)) * 100)
     : 100;
   const sonoOk = dormiuNaMeta(registro.horaDormiu, metas.horaDormirMeta);
   const pesoRef = parseFloat(perfil.peso) || 75;
-  const calorias = registro.atividadeFisica.feita ? calcularCalorias(registro.atividadeFisica.tipo, registro.atividadeFisica.minutos, pesoRef) : 0;
+  const calorias = (registro.atividadesFisicas || []).reduce((s, a) => s + calcularCalorias(a.tipo, a.minutos, pesoRef), 0);
   const totalCalorias = registro.refeicoes.reduce((s, r) => s + r.kcal, 0);
   const totalAguaMl = registro.aguaEntradas.reduce((s, a) => s + a.ml, 0);
   const acompanhaCigarro = perfil.acompanharCigarro !== false;
@@ -1302,6 +1307,14 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
     atualizarRegistro((r) => ({ ...r, aguaEntradas: r.aguaEntradas.filter((a) => a.id !== id) }));
   }
   function removerRefeicao(id) { atualizarRegistro((r) => ({ ...r, refeicoes: r.refeicoes.filter((x) => x.id !== id) })); }
+  function adicionarAtividade() {
+    if (!novaAtividade.tipo || !novaAtividade.minutos) return;
+    atualizarRegistro((r) => ({ ...r, atividadesFisicas: [...(r.atividadesFisicas || []), { id: Date.now(), tipo: novaAtividade.tipo, minutos: novaAtividade.minutos }] }));
+    setNovaAtividade({ tipo: "", minutos: "" });
+  }
+  function removerAtividade(id) {
+    atualizarRegistro((r) => ({ ...r, atividadesFisicas: (r.atividadesFisicas || []).filter((a) => a.id !== id) }));
+  }
 
   return (
     <>
@@ -1344,7 +1357,7 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
 
           <div className="flex items-center gap-1.5 mt-3">
             <Flame size={13} className="text-amber-400" />
-            <p className="text-xs text-slate-400">Sequência sem fumar: <NumeroAnimado valor={streak} /> dias · toque de novo pra desmarcar</p>
+            <p className="text-xs text-slate-400">Sequência sem fumar: <NumeroAnimado valor={streak} /> dias</p>
           </div>
         </Painel>
       )}
@@ -1399,37 +1412,37 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
 
         {subModulos.atividadeFisica && (
         <Cartao>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Dumbbell size={15} className="text-indigo-500" />
-              <Rotulo>Atividade física</Rotulo>
-            </div>
-            <BotaoToggle
-              ativo={registro.atividadeFisica.feita}
-              corAtiva="bg-emerald-500 text-white"
-              onClick={() =>
-                atualizarRegistro((r) =>
-                  r.atividadeFisica.feita
-                    ? { ...r, atividadeFisica: { feita: false, tipo: "", minutos: "" } }
-                    : { ...r, atividadeFisica: { ...r.atividadeFisica, feita: true } }
-                )
-              }
-            >
-              {registro.atividadeFisica.feita ? "Feita" : "Marcar"}
-            </BotaoToggle>
+          <div className="flex items-center gap-2 mb-3">
+            <Dumbbell size={15} className="text-indigo-500" />
+            <Rotulo>Atividade física</Rotulo>
+            {calorias > 0 && <span className="text-xs text-emerald-500 ml-auto">~{calorias} kcal no dia</span>}
           </div>
-          {registro.atividadeFisica.feita && (
-            <div className="mt-3 space-y-2">
-              <CampoSelect value={registro.atividadeFisica.tipo} onChange={(e) => atualizarRegistro((r) => ({ ...r, atividadeFisica: { ...r.atividadeFisica, tipo: e.target.value } }))}>
+          <div className="flex gap-2 mb-2">
+            <div className="flex-[1.3] min-w-0">
+              <CampoSelect value={novaAtividade.tipo} onChange={(e) => setNovaAtividade({ ...novaAtividade, tipo: e.target.value })}>
                 <option value="">Qual atividade?</option>
                 {TIPOS_ATIVIDADE.map((t) => <option key={t} value={t}>{t}</option>)}
               </CampoSelect>
-              <Campo type="number" placeholder="Duração (minutos)" value={registro.atividadeFisica.minutos} onChange={(e) => atualizarRegistro((r) => ({ ...r, atividadeFisica: { ...r.atividadeFisica, minutos: e.target.value } }))} />
-              {registro.atividadeFisica.tipo && registro.atividadeFisica.minutos && (
-                <p className="text-xs text-emerald-500">~{calorias} kcal estimadas (tabela MET padrão)</p>
-              )}
             </div>
-          )}
+            <div className="flex-1 min-w-0">
+              <Campo type="number" placeholder="Minutos" value={novaAtividade.minutos} onChange={(e) => setNovaAtividade({ ...novaAtividade, minutos: e.target.value })} />
+            </div>
+          </div>
+          <button onClick={adicionarAtividade} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2 text-sm font-medium mb-3 transition active:opacity-80">Adicionar</button>
+
+          {(registro.atividadesFisicas || []).length === 0 && <Sutil className="text-sm">Nenhuma atividade registrada hoje.</Sutil>}
+          <div className="space-y-2">
+            {(registro.atividadesFisicas || []).map((a) => (
+              <div key={a.id} className="flex items-center justify-between text-sm">
+                <span className={escuro ? "text-slate-200" : "text-slate-700"}>{a.tipo} · {a.minutos}min</span>
+                <div className="flex items-center gap-3">
+                  <Sutil>~{calcularCalorias(a.tipo, a.minutos, pesoRef)} kcal</Sutil>
+                  <button onClick={() => removerAtividade(a.id)} className="text-slate-400">✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+
         </Cartao>
         )}
 
@@ -1603,46 +1616,17 @@ function TabMental({ registro, atualizarRegistro }) {
 
 function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSelecionado, subModulos }) {
   const { escuro } = useTema();
-  const [novoGasto, setNovoGasto] = useState({ desc: "", valor: "", categoria: "" });
+  const [novoGasto, setNovoGasto] = useState({ desc: "", valor: "", categoria: "", fixo: false });
   const [novoInvest, setNovoInvest] = useState({ valor: "" });
-  const [novoFixo, setNovoFixo] = useState({ nome: "", valor: "" });
   const totalGasto = registro.gastos.reduce((s, g) => s + g.valor, 0);
   const totalInvestido = registro.investimentos.reduce((s, i) => s + i.valor, 0);
   const meta = parseFloat(metas.gastoDiario) || 0;
   const dentroDaMeta = meta > 0 ? totalGasto <= meta : null;
 
-  const gastosFixosPorMes = metas.gastosFixosPorMes && typeof metas.gastosFixosPorMes === "object" && !Array.isArray(metas.gastosFixosPorMes) ? metas.gastosFixosPorMes : {};
-  const listaDoMes = gastosFixosPorMes[mesSelecionado];
-  const gastosFixos = Array.isArray(listaDoMes) ? listaDoMes : [];
-  const totalFixos = gastosFixos.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0);
-
-  const mesesComDados = Object.keys(gastosFixosPorMes).filter((m) => Array.isArray(gastosFixosPorMes[m]) && gastosFixosPorMes[m].length > 0).sort();
-  const mesAnterior = [...mesesComDados].reverse().find((m) => m < mesSelecionado);
-  const podeCopiar = !listaDoMes && mesAnterior;
-
-  function salvarListaDoMes(novaLista) {
-    atualizarMetas((m) => ({
-      ...m,
-      gastosFixosPorMes: { ...(m.gastosFixosPorMes || {}), [mesSelecionado]: novaLista },
-    }));
-  }
-  function adicionarGastoFixo() {
-    if (!novoFixo.nome || !novoFixo.valor) return;
-    salvarListaDoMes([...gastosFixos, { id: Date.now(), nome: novoFixo.nome, valor: novoFixo.valor }]);
-    setNovoFixo({ nome: "", valor: "" });
-  }
-  function removerGastoFixo(id) {
-    salvarListaDoMes(gastosFixos.filter((g) => g.id !== id));
-  }
-  function copiarDoMesAnterior() {
-    const listaAnterior = gastosFixosPorMes[mesAnterior] || [];
-    salvarListaDoMes(listaAnterior.map((g) => ({ ...g, id: Date.now() + Math.random() })));
-  }
-
   function adicionarGasto() {
     if (!novoGasto.desc || !novoGasto.valor) return;
-    atualizarRegistro((r) => ({ ...r, gastos: [...r.gastos, { id: Date.now(), desc: novoGasto.desc, valor: parseFloat(novoGasto.valor), categoria: novoGasto.categoria }] }));
-    setNovoGasto({ desc: "", valor: "", categoria: novoGasto.categoria });
+    atualizarRegistro((r) => ({ ...r, gastos: [...r.gastos, { id: Date.now(), desc: novoGasto.desc, valor: parseFloat(novoGasto.valor), categoria: novoGasto.categoria, fixo: novoGasto.fixo }] }));
+    setNovoGasto({ desc: "", valor: "", categoria: novoGasto.categoria, fixo: false });
   }
   function removerGasto(id) { atualizarRegistro((r) => ({ ...r, gastos: r.gastos.filter((g) => g.id !== id) })); }
   function adicionarInvestimento() {
@@ -1692,6 +1676,12 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSe
             </CampoSelect>
           </div>
         </div>
+        {subModulos.gastosFixos && (
+          <label className={`flex items-center gap-2 text-sm mb-3 ${escuro ? "text-slate-300" : "text-slate-600"}`}>
+            <input type="checkbox" checked={novoGasto.fixo} onChange={(e) => setNovoGasto({ ...novoGasto, fixo: e.target.checked })} />
+            É um gasto fixo (aluguel, luz, assinatura...)
+          </label>
+        )}
         <button onClick={adicionarGasto} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2 text-sm font-medium transition active:opacity-80">Adicionar</button>
       </Cartao>
 
@@ -1701,6 +1691,7 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSe
             <div>
               <span className={`text-sm ${escuro ? "text-slate-200" : "text-slate-700"}`}>{g.desc}</span>
               <span className={`text-[10px] ml-2 px-1.5 py-0.5 rounded ${escuro ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-500"}`}>{g.categoria || "Outro"}</span>
+              {g.fixo && <span className="text-[10px] ml-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">Fixo</span>}
             </div>
             <div className="flex items-center gap-3">
               <span className={`text-sm font-medium ${escuro ? "text-white" : "text-slate-900"}`}>R$ {g.valor.toFixed(2).replace(".", ",")}</span>
@@ -1730,51 +1721,6 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSe
                 <div className="flex items-center gap-3">
                   <span className="text-emerald-500 font-medium">R$ {i.valor.toFixed(2).replace(".", ",")}</span>
                   <button onClick={() => removerInvestimento(i.id)} className="text-slate-400">✕</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Cartao>
-      </div>
-      )}
-
-      {subModulos.gastosFixos && (
-      <div className="mt-8">
-        <TituloSecao Icone={Receipt}>Gastos fixos</TituloSecao>
-        <Sutil className="text-xs block mb-3 capitalize">{nomeMesCompleto(mesSelecionado)} · não entra na meta de gasto diário</Sutil>
-        <Cartao>
-          <p className="mb-4">
-            <span className={`text-2xl font-semibold ${escuro ? "text-white" : "text-slate-900"}`}>R$ {totalFixos.toFixed(2).replace(".", ",")}</span>
-            <span className="text-sm text-slate-400"> /mês</span>
-          </p>
-
-          {podeCopiar && (
-            <button onClick={copiarDoMesAnterior} className={`w-full text-xs px-3 py-2 rounded-lg border mb-3 transition active:opacity-70 ${escuro ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-600"}`}>
-              Copiar gastos fixos de {nomeMesCompleto(mesAnterior)}
-            </button>
-          )}
-
-          <div className="flex gap-2 mb-2">
-            <div className="flex-[1.4] min-w-0">
-              <CampoSelect value={novoFixo.nome} onChange={(e) => setNovoFixo({ ...novoFixo, nome: e.target.value })}>
-                <option value="">Qual gasto?</option>
-                {GASTOS_FIXOS_PADRAO.map((nome) => <option key={nome} value={nome}>{nome}</option>)}
-              </CampoSelect>
-            </div>
-            <div className="flex-1 min-w-0">
-              <Campo type="number" placeholder="Valor" value={novoFixo.valor} onChange={(e) => setNovoFixo({ ...novoFixo, valor: e.target.value })} />
-            </div>
-          </div>
-          <button onClick={adicionarGastoFixo} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2 text-sm font-medium mb-3 transition active:opacity-80">Adicionar</button>
-
-          {gastosFixos.length === 0 && <Sutil className="text-sm">Nenhum gasto fixo cadastrado para este mês ainda.</Sutil>}
-          <div className="space-y-2">
-            {gastosFixos.map((g) => (
-              <div key={g.id} className="flex items-center justify-between text-sm">
-                <span className={escuro ? "text-slate-200" : "text-slate-700"}>{g.nome}</span>
-                <div className="flex items-center gap-3">
-                  <span className={`font-medium ${escuro ? "text-white" : "text-slate-900"}`}>R$ {parseFloat(g.valor || 0).toFixed(2).replace(".", ",")}</span>
-                  <button onClick={() => removerGastoFixo(g.id)} className="text-slate-400">✕</button>
                 </div>
               </div>
             ))}
@@ -1884,7 +1830,7 @@ function TabMetas({ dadosPorDia, metas, atualizarMetas, registro, perfil }) {
   const metaInvest = parseFloat(metas.investimentoMensal) || 0;
   const progressoInvest = metaInvest > 0 ? Math.round((totalInvestidoMes / metaInvest) * 100) : 0;
   const diasComSonoOk = registrosDoMes.filter((r) => dormiuNaMeta(r.horaDormiu, metas.horaDormirMeta)).length;
-  const diasComAtividadeMes = registrosDoMes.filter((r) => r.atividadeFisica?.feita).length;
+  const diasComAtividadeMes = registrosDoMes.filter((r) => (r.atividadesFisicas || []).length > 0).length;
   const metaAtividade = parseFloat(metas.atividadeFisicaMetaMes) || 0;
   const progressoAtividade = metaAtividade > 0 ? Math.round((diasComAtividadeMes / metaAtividade) * 100) : 0;
   const pesoAtual = parseFloat(perfil.peso) || null;
@@ -2211,24 +2157,19 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
     if (!meses[chave]) meses[chave] = [];
     meses[chave].push(dadosPorDia[iso]);
   }
-  const gastosFixosPorMesTop = metas.gastosFixosPorMes && typeof metas.gastosFixosPorMes === "object" && !Array.isArray(metas.gastosFixosPorMes) ? metas.gastosFixosPorMes : {};
-  const mesesComFixos = Object.keys(gastosFixosPorMesTop).filter((m) => Array.isArray(gastosFixosPorMesTop[m]) && gastosFixosPorMesTop[m].length > 0);
-  const mesesOrdenados = Array.from(new Set([...Object.keys(meses), ...mesesComFixos])).sort();
+  const mesesOrdenados = Object.keys(meses).sort();
 
   function caloriasDoDia(r) {
-    if (!r.atividadeFisica?.feita) return 0;
     const peso = parseFloat(perfil.peso) || 75;
-    return calcularCalorias(r.atividadeFisica.tipo, r.atividadeFisica.minutos, peso);
+    return (r.atividadesFisicas || []).reduce((s, a) => s + calcularCalorias(a.tipo, a.minutos, peso), 0);
   }
   function minutosDoDia(r) {
-    return r.atividadeFisica?.feita ? (parseFloat(r.atividadeFisica.minutos) || 0) : 0;
+    return (r.atividadesFisicas || []).reduce((s, a) => s + (parseFloat(a.minutos) || 0), 0);
   }
 
   function fixosDoMes(chave) {
-    const gfpm = metas.gastosFixosPorMes;
-    const lista = gfpm && typeof gfpm === "object" && !Array.isArray(gfpm) ? gfpm[chave] : null;
-    if (!Array.isArray(lista)) return 0;
-    return lista.reduce((s, g) => s + (parseFloat(g.valor) || 0), 0);
+    const registros = meses[chave] || [];
+    return registros.reduce((s, r) => s + (r.gastos || []).filter((g) => g.fixo).reduce((a, g) => a + g.valor, 0), 0);
   }
 
   const dadosGraficoMensal = mesesOrdenados.map((chave) => {
@@ -2257,8 +2198,8 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
 
   const contagemAtividades = {};
   for (const r of Object.values(dadosPorDia)) {
-    if (r.atividadeFisica?.feita && r.atividadeFisica.tipo) {
-      contagemAtividades[r.atividadeFisica.tipo] = (contagemAtividades[r.atividadeFisica.tipo] || 0) + 1;
+    for (const a of r.atividadesFisicas || []) {
+      if (a.tipo) contagemAtividades[a.tipo] = (contagemAtividades[a.tipo] || 0) + 1;
     }
   }
   const dadosPizza = Object.entries(contagemAtividades).map(([nome, valor]) => ({ nome, valor }));
@@ -2275,7 +2216,7 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
   const corGrade = escuro ? "#1e293b" : "#f1f5f9";
   const corTexto = escuro ? "#64748b" : "#94a3b8";
 
-  const totalFixosGeral = Object.values(gastosFixosPorMesTop).reduce((s, lista) => s + (Array.isArray(lista) ? lista.reduce((a, g) => a + (parseFloat(g.valor) || 0), 0) : 0), 0);
+  const totalFixosGeral = Object.values(dadosPorDia).reduce((s, r) => s + (r.gastos || []).filter((g) => g.fixo).reduce((a, g) => a + g.valor, 0), 0);
 
   const CARDS = [
     { label: "XP total", valor: xpTotal, Icone: Award, moduloReq: "saude" },
@@ -2418,31 +2359,6 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
             </div>
           )}
 
-          {(() => {
-            if (!modulos.financas) return null;
-            const ultimoMesComFixos = [...mesesComFixos].sort().pop();
-            const dadosPizzaFixos = ultimoMesComFixos
-              ? gastosFixosPorMesTop[ultimoMesComFixos].map((g) => ({ nome: g.nome, valor: Math.round(parseFloat(g.valor) || 0) })).filter((g) => g.valor > 0)
-              : [];
-            if (dadosPizzaFixos.length === 0) return null;
-            return (
-              <div className="mt-6">
-                <h2 className={`font-semibold mb-3 text-sm capitalize ${escuro ? "text-white" : "text-slate-900"}`}>Composição dos gastos fixos ({nomeMesCompleto(ultimoMesComFixos)})</h2>
-                <Cartao className="h-56">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={dadosPizzaFixos} dataKey="valor" nameKey="nome" cx="50%" cy="50%" outerRadius={70} label={{ fontSize: 11, fill: corTexto }}>
-                        {dadosPizzaFixos.map((_, i) => <Cell key={i} fill={CORES_GRAFICO[i % CORES_GRAFICO.length]} />)}
-                      </Pie>
-                      <Tooltip formatter={(v) => `R$ ${v}`} />
-                      <Legend wrapperStyle={{ fontSize: 11 }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </Cartao>
-              </div>
-            );
-          })()}
-
           <div className="mt-6 space-y-3">
             {mesesOrdenados.length === 0 && <Sutil className="text-sm">Ainda sem dados suficientes.</Sutil>}
             {[...mesesOrdenados].reverse().map((chave) => {
@@ -2453,7 +2369,7 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
               const humorMedio = n ? Math.round(registros.reduce((s, r) => s + (r.humorPercent || 0), 0) / n) : 0;
               const fisicaMedia = n ? Math.round(registros.reduce((s, r) => s + (r.saudeFisicaPercent || 0), 0) / n) : 0;
               const diasSemFumar = registros.filter((r) => r.fumei === false).length;
-              const diasAtividade = registros.filter((r) => r.atividadeFisica?.feita).length;
+              const diasAtividade = registros.filter((r) => (r.atividadesFisicas || []).length > 0).length;
               const diasSonoOk = registros.filter((r) => dormiuNaMeta(r.horaDormiu, metas.horaDormirMeta)).length;
               const pesos = (Array.isArray(perfil.historicoPeso) ? perfil.historicoPeso : []).filter((h) => mesDoIso(h.data) === chave).map((h) => parseFloat(h.valor)).filter((p) => !isNaN(p));
               const pesoMedio = pesos.length ? (pesos.reduce((a, b) => a + b, 0) / pesos.length).toFixed(1) : "—";
@@ -2505,7 +2421,11 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
                 <div className="grid grid-cols-2 gap-y-1 text-xs">
                   {modulos.mental && <Sutil>Mental: {r.humorPercent}%</Sutil>}
                   {modulos.saude && <Sutil>Disposição: {r.saudeFisicaPercent}%</Sutil>}
-                  {modulos.saude && <Sutil>Atividade: {r.atividadeFisica?.feita ? `${r.atividadeFisica.tipo || "sim"} (${r.atividadeFisica.minutos || 0}min)` : "não"}</Sutil>}
+                  {modulos.saude && (
+                    <Sutil>
+                      Atividade: {(r.atividadesFisicas || []).length > 0 ? `${r.atividadesFisicas.length}x (${minutosDoDia(r)}min)` : "não"}
+                    </Sutil>
+                  )}
                   {modulos.saude && <Sutil>Calorias: {caloriasDoDia(r)} kcal</Sutil>}
                   {modulos.saude && <Sutil>Sono: {r.horaDormiu || "—"}</Sutil>}
                   {modulos.saude && <Sutil>Peso: {(perfil.historicoPeso || []).find((h) => h.data === iso)?.valor || "—"} kg</Sutil>}
