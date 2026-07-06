@@ -439,7 +439,6 @@ function Confete() {
 
 export default function Home() {
   const [perfil, setPerfil] = useState(null);
-  const touchStartX = useRef(null);
   const [dadosPorDia, setDadosPorDia] = useState({});
   const [metas, setMetas] = useState(METAS_PADRAO);
   const [dataSelecionada, setDataSelecionada] = useState(hojeISO());
@@ -678,24 +677,6 @@ export default function Home() {
     { id: "relatorios", label: "Relatórios", Icone: BarChart3 },
   ].filter((tab) => tab.id === "relatorios" || modulos[tab.id]);
 
-  function aoTocarInicio(e) {
-    if (e.touches.length > 1) { touchStartX.current = null; return; }
-    touchStartX.current = e.touches[0].clientX;
-  }
-  function aoTocarMover(e) {
-    if (e.touches.length > 1) touchStartX.current = null;
-  }
-  function aoTocarFim(e) {
-    if (touchStartX.current === null) return;
-    if (e.touches.length > 0) { touchStartX.current = null; return; }
-    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
-    const ehHoje = dataSelecionada === hojeISO();
-    const ehLimite = dataSelecionada <= dataLimite;
-    if (deltaX < -60 && !ehHoje) mudarData(somarDias(dataSelecionada, 1));
-    else if (deltaX > 60 && !ehLimite) mudarData(somarDias(dataSelecionada, -1));
-    touchStartX.current = null;
-  }
-
   return (
     <TemaContext.Provider value={temaValue}>
       <style jsx global>{`
@@ -716,7 +697,7 @@ export default function Home() {
         .animate-brilhoPainel { animation: brilhoPainel 3.5s ease-in-out infinite; }
       `}</style>
       <main className={`min-h-screen pb-28 transition-colors duration-300 ${escuro ? "bg-slate-950" : "bg-slate-50"}`}>
-        <div className="max-w-md mx-auto px-5 py-8" onTouchStart={aoTocarInicio} onTouchMove={aoTocarMover} onTouchEnd={aoTocarFim}>
+        <div className="max-w-md mx-auto px-5 py-8">
           <div className="flex items-center justify-between mb-6">
             <button onClick={() => setEditandoPerfil(true)} className={`w-9 h-9 rounded-lg border flex items-center justify-center transition active:opacity-70 ${escuro ? "bg-slate-900 border-slate-800 text-slate-400" : "bg-white border-slate-200 text-slate-500"}`}>
               <Pencil size={15} />
