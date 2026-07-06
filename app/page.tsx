@@ -2177,6 +2177,8 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
     .map((h) => ({ data: formatarData(h.data).slice(0, 5), peso: parseFloat(h.valor) }));
 
   const totalGastoGeral = Object.values(dadosPorDia).reduce((s, r) => s + (r.gastos || []).reduce((a, g) => a + g.valor, 0), 0);
+  const diasComGastoRegistrado = Object.values(dadosPorDia).filter((r) => (r.gastos || []).length > 0).length;
+  const gastoMedioDiarioGeral = diasComGastoRegistrado > 0 ? totalGastoGeral / diasComGastoRegistrado : 0;
   const totalInvestidoGeral = Object.values(dadosPorDia).reduce((s, r) => s + (r.investimentos || []).reduce((a, i) => a + i.valor, 0), 0);
   const totalMinutosGeral = Object.values(dadosPorDia).reduce((s, r) => s + minutosDoDia(r), 0);
   const totalCaloriasGeral = Object.values(dadosPorDia).reduce((s, r) => s + caloriasDoDia(r), 0);
@@ -2212,6 +2214,7 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
     { label: "Calorias queimadas", valor: `${totalCaloriasGeral} kcal`, Icone: Zap, moduloReq: "saude" },
     { label: "Investido (total)", valor: `R$ ${totalInvestidoGeral.toFixed(0)}`, Icone: TrendingUp, moduloReq: "financas" },
     { label: "Gasto (total)", valor: `R$ ${totalGastoGeral.toFixed(0)}`, Icone: Wallet, moduloReq: "financas" },
+    { label: "Gasto médio diário", valor: `R$ ${gastoMedioDiarioGeral.toFixed(2).replace(".", ",")}`, Icone: Wallet, moduloReq: "financas" },
     { label: "Gastos fixos (total)", valor: `R$ ${totalFixosGeral.toFixed(0)}`, Icone: Receipt, moduloReq: "financas" },
     { label: "Peso atual", valor: `${pesoRecente ?? "—"} kg`, Icone: Scale, moduloReq: "saude" },
   ].filter((c) => modulos[c.moduloReq] && c.extra !== false);
@@ -2365,6 +2368,8 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
               const metaGasto = parseFloat(metas.gastoDiario) || 0;
               const diasDentroOrcamento = metaGasto > 0 ? registros.filter((r) => (r.gastos || []).reduce((a, g) => a + g.valor, 0) <= metaGasto).length : null;
               const fixoTotal = fixosDoMes(chave);
+              const diasComGastoNoMes = registros.filter((r) => (r.gastos || []).length > 0).length;
+              const gastoMedioDiarioMes = diasComGastoNoMes > 0 ? gastoTotal / diasComGastoNoMes : 0;
               return (
                 <Cartao key={chave} className="border-l-2 border-l-indigo-500">
                   <p className={`font-semibold text-sm capitalize mb-2 ${escuro ? "text-white" : "text-slate-900"}`}>{nomeMesCompleto(chave)}</p>
@@ -2379,6 +2384,7 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
                     {modulos.saude && <Sutil>Disposição média: {fisicaMedia}%</Sutil>}
                     {modulos.saude && <Sutil>Peso médio: {pesoMedio} kg</Sutil>}
                     {modulos.financas && <Sutil>Gasto total: R$ {gastoTotal.toFixed(2).replace(".", ",")}</Sutil>}
+                    {modulos.financas && <Sutil>Gasto médio/dia: R$ {gastoMedioDiarioMes.toFixed(2).replace(".", ",")}</Sutil>}
                     {modulos.financas && <Sutil>Investido total: R$ {investidoTotal.toFixed(2).replace(".", ",")}</Sutil>}
                     {modulos.financas && <Sutil>Gastos fixos: R$ {fixoTotal.toFixed(2).replace(".", ",")}</Sutil>}
                     {modulos.financas && <Sutil>Total com fixos: R$ {(gastoTotal + fixoTotal).toFixed(2).replace(".", ",")}</Sutil>}
