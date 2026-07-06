@@ -2177,8 +2177,9 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
     .map((h) => ({ data: formatarData(h.data).slice(0, 5), peso: parseFloat(h.valor) }));
 
   const totalGastoGeral = Object.values(dadosPorDia).reduce((s, r) => s + (r.gastos || []).reduce((a, g) => a + g.valor, 0), 0);
-  const diasComGastoRegistrado = Object.values(dadosPorDia).filter((r) => (r.gastos || []).length > 0).length;
-  const gastoMedioDiarioGeral = diasComGastoRegistrado > 0 ? totalGastoGeral / diasComGastoRegistrado : 0;
+  const totalGastoVariavelGeral = Object.values(dadosPorDia).reduce((s, r) => s + (r.gastos || []).filter((g) => !g.fixo).reduce((a, g) => a + g.valor, 0), 0);
+  const diasComGastoRegistrado = Object.values(dadosPorDia).filter((r) => (r.gastos || []).some((g) => !g.fixo)).length;
+  const gastoMedioDiarioGeral = diasComGastoRegistrado > 0 ? totalGastoVariavelGeral / diasComGastoRegistrado : 0;
   const totalInvestidoGeral = Object.values(dadosPorDia).reduce((s, r) => s + (r.investimentos || []).reduce((a, i) => a + i.valor, 0), 0);
   const totalMinutosGeral = Object.values(dadosPorDia).reduce((s, r) => s + minutosDoDia(r), 0);
   const totalCaloriasGeral = Object.values(dadosPorDia).reduce((s, r) => s + caloriasDoDia(r), 0);
@@ -2368,8 +2369,9 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
               const metaGasto = parseFloat(metas.gastoDiario) || 0;
               const diasDentroOrcamento = metaGasto > 0 ? registros.filter((r) => (r.gastos || []).reduce((a, g) => a + g.valor, 0) <= metaGasto).length : null;
               const fixoTotal = fixosDoMes(chave);
-              const diasComGastoNoMes = registros.filter((r) => (r.gastos || []).length > 0).length;
-              const gastoMedioDiarioMes = diasComGastoNoMes > 0 ? gastoTotal / diasComGastoNoMes : 0;
+              const gastoVariavelTotal = registros.reduce((s, r) => s + (r.gastos || []).filter((g) => !g.fixo).reduce((a, g) => a + g.valor, 0), 0);
+              const diasComGastoNoMes = registros.filter((r) => (r.gastos || []).some((g) => !g.fixo)).length;
+              const gastoMedioDiarioMes = diasComGastoNoMes > 0 ? gastoVariavelTotal / diasComGastoNoMes : 0;
               return (
                 <Cartao key={chave} className="border-l-2 border-l-indigo-500">
                   <p className={`font-semibold text-sm capitalize mb-2 ${escuro ? "text-white" : "text-slate-900"}`}>{nomeMesCompleto(chave)}</p>
