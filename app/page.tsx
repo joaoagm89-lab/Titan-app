@@ -30,13 +30,19 @@ const MET_POR_ATIVIDADE = {
 
 const CORES_GRAFICO = ["#6366f1", "#0d9488", "#e11d48", "#d97706", "#64748b", "#0284c7", "#65a30d", "#7c3aed"];
 
-const NIVEIS = [
-  { nivel: 1, nome: "Iniciante", xpNecessario: 0 },
-  { nivel: 2, nome: "Disciplinado", xpNecessario: 200 },
-  { nivel: 3, nome: "Consistente", xpNecessario: 500 },
-  { nivel: 4, nome: "Forte", xpNecessario: 900 },
-  { nivel: 5, nome: "Titan", xpNecessario: 1400 },
-];
+function gerarNiveis() {
+  const niveis = [{ nivel: 1, xpNecessario: 0 }];
+  let acumulado = 0;
+  for (let n = 2; n <= 80; n++) {
+    const custoDesteNivel = 100 + (n - 2) * 12;
+    acumulado += custoDesteNivel;
+    niveis.push({ nivel: n, xpNecessario: acumulado });
+  }
+  return niveis;
+}
+const NIVEIS = gerarNiveis();
+
+const RECOMPENSA_PADRAO = "A cada nível, presenteie-se com algo que goste, até R$ 30 — um lanche, um livro, o que fizer sentido pra você.";
 
 const XP_NAO_FUMAR = 40;
 const XP_NAO_BEBER = 30;
@@ -97,6 +103,7 @@ const METAS_PADRAO = {
   atividadeFisicaMetaMes: "",
   aguaMetaLitros: "",
   gastosFixosPorMes: {},
+  recompensaPorNivel: RECOMPENSA_PADRAO,
 };
 
 const MODULOS_PRINCIPAIS = [
@@ -258,7 +265,7 @@ function CampoDiario({ entradas, onAdicionar, onRemover, placeholder, className 
   );
 }
 
-function CampoMetaPessoal({ valor, onSalvar }) {
+function CampoMetaPessoal({ valor, onSalvar, placeholder = "Escreva uma meta pessoal para você..." }) {
   const [rascunho, setRascunho] = useState(valor);
   const [salvo, setSalvo] = useState(false);
 
@@ -273,7 +280,7 @@ function CampoMetaPessoal({ valor, onSalvar }) {
   return (
     <div>
       <CampoArea
-        placeholder="Escreva uma meta pessoal para você..."
+        placeholder={placeholder}
         value={rascunho}
         onChange={(e) => { setRascunho(e.target.value); setSalvo(false); }}
         className="h-20"
@@ -457,6 +464,7 @@ export default function Home() {
   const [verificouAcesso, setVerificouAcesso] = useState(false);
   const [popupDia, setPopupDia] = useState(null);
   const [popupMes, setPopupMes] = useState(null);
+  const [popupNivel, setPopupNivel] = useState(null);
   const [sessao, setSessao] = useState(null);
   const [carregandoAuth, setCarregandoAuth] = useState(true);
   const [googleConectado, setGoogleConectado] = useState(false);
@@ -572,6 +580,17 @@ export default function Home() {
       setAba(primeiraDisponivel || "relatorios");
     }
   }, [perfil, aba]);
+
+  useEffect(() => {
+    if (!carregado || !perfil) return;
+    const xp = calcularXpTotal(dadosPorDia, metas);
+    const { atual } = calcularNivel(xp);
+    const nivelVisto = perfil.nivelVisto || 1;
+    if (atual.nivel > nivelVisto) {
+      setPopupNivel(atual.nivel);
+      setPerfil((p) => ({ ...p, nivelVisto: atual.nivel }));
+    }
+  }, [carregado, perfil, dadosPorDia, metas]);
 
   const temaValue = { escuro, alternar: () => setEscuro((e) => !e) };
 
@@ -771,6 +790,9 @@ export default function Home() {
             metas={metas}
             onFechar={() => setPopupMes(null)}
           />
+        )}
+        {!popupDia && !popupMes && popupNivel && (
+          <PopupNivel nivel={popupNivel} recompensa={metas.recompensaPorNivel} onFechar={() => setPopupNivel(null)} />
         )}
 
         <nav className={`fixed bottom-0 left-0 right-0 border-t ${escuro ? "bg-slate-950/95 border-slate-800" : "bg-white/95 border-slate-200"} backdrop-blur-md`}>
@@ -1028,6 +1050,29 @@ function PopupResumoDia({ data, registro, metas, onFechar }) {
 
         <button onClick={onFechar} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2.5 text-sm font-medium mt-5 transition active:opacity-80">
           Fechar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PopupNivel({ nivel, recompensa, onFechar }) {
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center px-6 z-50">
+      <Confete />
+      <div className="max-w-sm w-full rounded-xl p-6 border bg-slate-900 border-slate-800 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center mx-auto mb-4">
+          <Award size={28} className="text-white" />
+        </div>
+        <p className="text-xs text-indigo-400 uppercase tracking-wide mb-1">Subiu de nível</p>
+        <h3 className="text-2xl font-bold text-white mb-4">Nível {nivel}!</h3>
+        {recompensa && (
+          <div className="bg-slate-800/60 rounded-lg p-3 mb-4">
+            <p className="text-sm text-slate-300">🎁 {recompensa}</p>
+          </div>
+        )}
+        <button onClick={onFechar} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2.5 text-sm font-medium transition active:opacity-80">
+          Bora continuar
         </button>
       </div>
     </div>
@@ -1400,8 +1445,8 @@ function TabSaude({ perfil, registro, atualizarRegistro, metas, streak, xpTotal,
 
 
       <Painel Icone={Award} corIcone="text-indigo-400">
-        <Sutil className="!text-slate-400 text-sm">Nível {nivelAtual.nivel}</Sutil>
-        <p className="text-lg font-semibold">{nivelAtual.nome}</p>
+        <Sutil className="!text-slate-400 text-sm">Seu nível</Sutil>
+        <p className="text-3xl font-bold">Nível {nivelAtual.nivel}</p>
         <div className="mt-4">
           <div className="flex justify-between text-xs text-slate-400 mb-1">
             <span><NumeroAnimado valor={xpTotal} /> XP</span>
@@ -1855,6 +1900,12 @@ function TabMetas({ dadosPorDia, metas, atualizarMetas, registro, perfil }) {
       <Cartao className="mt-6">
         <Rotulo className="mb-2">Meta pessoal</Rotulo>
         <CampoMetaPessoal valor={metas.metaPessoal} onSalvar={(v) => atualizarMetas((m) => ({ ...m, metaPessoal: v }))} />
+      </Cartao>
+
+      <Cartao className="mt-4">
+        <Rotulo className="mb-2">🎁 Recompensa a cada nível</Rotulo>
+        <Sutil className="text-xs block mb-3">Toda vez que você sobe de nível, o app mostra essa mensagem pra você. Escreve do jeito que fizer sentido — pode mudar quando quiser.</Sutil>
+        <CampoMetaPessoal valor={metas.recompensaPorNivel} onSalvar={(v) => atualizarMetas((m) => ({ ...m, recompensaPorNivel: v }))} />
       </Cartao>
 
       <Cartao className="mt-4">
