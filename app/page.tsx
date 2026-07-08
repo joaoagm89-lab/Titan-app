@@ -39,8 +39,11 @@ const NIVEIS = [
 ];
 
 const XP_NAO_FUMAR = 40;
+const XP_NAO_BEBER = 30;
 const XP_ATIVIDADE = 30;
 const XP_SONO_META = 15;
+const XP_META_AGUA = 15;
+const XP_META_GASTO = 20;
 
 const NIVEL_TRABALHO = ["Improdutivo", "Pouco produtivo", "Neutro", "Produtivo", "Muito produtivo"];
 const NIVEL_DISPOSICAO = ["Muito indisposto", "Indisposto", "Neutro", "Disposto", "Muito disposto"];
@@ -123,6 +126,11 @@ function somarDias(iso, delta) {
   const dt = new Date(iso + "T00:00:00");
   dt.setDate(dt.getDate() + delta);
   return dt.toISOString().slice(0, 10);
+}
+function contarDiasEntre(inicio, fim) {
+  const d1 = new Date(inicio + "T00:00:00");
+  const d2 = new Date(fim + "T00:00:00");
+  return Math.round((d2 - d1) / 86400000) + 1;
 }
 function formatarData(iso) {
   const [y, m, d] = iso.split("-");
@@ -810,11 +818,22 @@ function calcularStreak(dadosPorDia, hojeIso) {
 
 function calcularXpTotal(dadosPorDia, metas) {
   let total = 0;
+  const metaAgua = parseFloat(metas.aguaMetaLitros) || 0;
+  const metaGastoDiario = parseFloat(metas.gastoDiario) || 0;
   for (const iso in dadosPorDia) {
     const reg = dadosPorDia[iso];
     if (reg.fumei === false) total += XP_NAO_FUMAR;
+    if (reg.bebeu === false) total += XP_NAO_BEBER;
     if ((reg.atividadesFisicas || []).length > 0) total += XP_ATIVIDADE;
     if (dormiuNaMeta(reg.horaDormiu, metas.horaDormirMeta)) total += XP_SONO_META;
+    if (metaAgua > 0) {
+      const aguaDia = (reg.aguaEntradas || []).reduce((s, a) => s + a.ml, 0) / 1000;
+      if (aguaDia >= metaAgua) total += XP_META_AGUA;
+    }
+    if (metaGastoDiario > 0) {
+      const gastoVariavelDia = (reg.gastos || []).filter((g) => !g.fixo).reduce((s, g) => s + g.valor, 0);
+      if (gastoVariavelDia <= metaGastoDiario) total += XP_META_GASTO;
+    }
   }
   return total;
 }
@@ -2178,8 +2197,9 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
 
   const totalGastoGeral = Object.values(dadosPorDia).reduce((s, r) => s + (r.gastos || []).reduce((a, g) => a + g.valor, 0), 0);
   const totalGastoVariavelGeral = Object.values(dadosPorDia).reduce((s, r) => s + (r.gastos || []).filter((g) => !g.fixo).reduce((a, g) => a + g.valor, 0), 0);
-  const diasComGastoRegistrado = Object.values(dadosPorDia).filter((r) => (r.gastos || []).some((g) => !g.fixo)).length;
-  const gastoMedioDiarioGeral = diasComGastoRegistrado > 0 ? totalGastoVariavelGeral / diasComGastoRegistrado : 0;
+  const primeiroDiaGeral = perfil.dataInicioApp || perfil.dataCadastro || Object.keys(dadosPorDia).sort()[0] || hojeISO();
+  const diasCorridosGeral = Math.max(1, contarDiasEntre(primeiroDiaGeral, hojeISO()));
+  const gastoMedioDiarioGeral = totalGastoVariavelGeral / diasCorridosGeral;
   const totalInvestidoGeral = Object.values(dadosPorDia).reduce((s, r) => s + (r.investimentos || []).reduce((a, i) => a + i.valor, 0), 0);
   const totalMinutosGeral = Object.values(dadosPorDia).reduce((s, r) => s + minutosDoDia(r), 0);
   const totalCaloriasGeral = Object.values(dadosPorDia).reduce((s, r) => s + caloriasDoDia(r), 0);
@@ -2370,8 +2390,11 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
               const diasDentroOrcamento = metaGasto > 0 ? registros.filter((r) => (r.gastos || []).reduce((a, g) => a + g.valor, 0) <= metaGasto).length : null;
               const fixoTotal = fixosDoMes(chave);
               const gastoVariavelTotal = registros.reduce((s, r) => s + (r.gastos || []).filter((g) => !g.fixo).reduce((a, g) => a + g.valor, 0), 0);
-              const diasComGastoNoMes = registros.filter((r) => (r.gastos || []).some((g) => !g.fixo)).length;
-              const gastoMedioDiarioMes = diasComGastoNoMes > 0 ? gastoVariavelTotal / diasComGastoNoMes : 0;
+              const ehMesAtual = chave === mesDoIso(hojeISO());
+              const diasNoMesTotal = new Date(parseInt(chave.slice(0, 4)), parseInt(chave.slice(5, 7)), 0).getDate();
+              const diaAtualDoMes = parseInt(hojeISO().slice(8, 10), 10);
+              const diasCorridosMes = ehMesAtual ? diaAtualDoMes : diasNoMesTotal;
+              const gastoMedioDiarioMes = gastoVariavelTotal / Math.max(1, diasCorridosMes);
               return (
                 <Cartao key={chave} className="border-l-2 border-l-indigo-500">
                   <p className={`font-semibold text-sm capitalize mb-2 ${escuro ? "text-white" : "text-slate-900"}`}>{nomeMesCompleto(chave)}</p>
