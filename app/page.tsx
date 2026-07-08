@@ -184,12 +184,12 @@ function calcularCalorias(tipo, minutos, pesoKg) {
   const horas = (parseFloat(minutos) || 0) / 60;
   return Math.round(met * peso * horas);
 }
-function calcularMelhorStreak(dadosPorDia) {
+function calcularMelhorStreak(dadosPorDia, campo = "fumei") {
   const datas = Object.keys(dadosPorDia).sort();
   let melhor = 0, atual = 0, anterior = null;
   for (const iso of datas) {
     const reg = dadosPorDia[iso];
-    if (reg.fumei === false) {
+    if (reg[campo] === false) {
       atual = (anterior && somarDias(anterior, 1) === iso) ? atual + 1 : 1;
       melhor = Math.max(melhor, atual);
       anterior = iso;
@@ -2153,6 +2153,7 @@ function TabTarefas({ dadosPorDia, atualizarDia, googleConectado, googleFetch, c
 function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
   const modulos = { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true, ...(perfil.modulosAtivos || {}) };
   const acompanhaCigarroRel = perfil.acompanharCigarro !== false;
+  const acompanhaBebidaRel = perfil.acompanharBebida !== false;
   const { escuro } = useTema();
   const [modo, setModo] = useState("mensal");
   const datasOrdenadas = Object.keys(dadosPorDia).sort().reverse();
@@ -2203,7 +2204,9 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
   const totalInvestidoGeral = Object.values(dadosPorDia).reduce((s, r) => s + (r.investimentos || []).reduce((a, i) => a + i.valor, 0), 0);
   const totalMinutosGeral = Object.values(dadosPorDia).reduce((s, r) => s + minutosDoDia(r), 0);
   const totalCaloriasGeral = Object.values(dadosPorDia).reduce((s, r) => s + caloriasDoDia(r), 0);
-  const melhorStreak = calcularMelhorStreak(dadosPorDia);
+  const melhorStreak = calcularMelhorStreak(dadosPorDia, "fumei");
+  const melhorStreakBebida = calcularMelhorStreak(dadosPorDia, "bebeu");
+  const totalAtividadesGeral = Object.values(dadosPorDia).reduce((s, r) => s + (r.atividadesFisicas || []).length, 0);
   const pesoRecente = dadosPeso.length ? dadosPeso[dadosPeso.length - 1].peso : null;
 
   const contagemAtividades = {};
@@ -2231,6 +2234,8 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
   const CARDS = [
     { label: "XP total", valor: xpTotal, Icone: Award, moduloReq: "saude" },
     { label: "Melhor sequência", valor: `${melhorStreak}d`, Icone: Flame, moduloReq: "saude", extra: acompanhaCigarroRel },
+    { label: "Melhor sequência sem beber", valor: `${melhorStreakBebida}d`, Icone: Wine, moduloReq: "saude", extra: acompanhaBebidaRel },
+    { label: "Atividades físicas feitas", valor: totalAtividadesGeral, Icone: Dumbbell, moduloReq: "saude" },
     { label: "Tempo de atividade", valor: `${totalMinutosGeral} min`, Icone: Timer, moduloReq: "saude" },
     { label: "Calorias queimadas", valor: `${totalCaloriasGeral} kcal`, Icone: Zap, moduloReq: "saude" },
     { label: "Investido (total)", valor: `R$ ${totalInvestidoGeral.toFixed(0)}`, Icone: TrendingUp, moduloReq: "financas" },
