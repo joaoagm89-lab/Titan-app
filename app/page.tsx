@@ -10,7 +10,7 @@ import {
   Activity, Brain, Wallet, Compass, Target, BarChart3,
   Sun, Moon, ChevronLeft, ChevronRight, Pencil, Cigarette, CigaretteOff, CalendarDays, Plus,
   Dumbbell, Droplets, Scale, UtensilsCrossed, TrendingUp, Briefcase,
-  BookOpen, Heart, Users, Flame, Timer, Zap, PiggyBank, Award, LogOut, Wine, Receipt,
+  BookOpen, Heart, Users, Flame, Timer, Zap, PiggyBank, Award, LogOut, Wine, Receipt, Landmark, TrendingDown, Baby,
 } from "lucide-react";
 
 const TIPOS_ATIVIDADE = [
@@ -42,7 +42,21 @@ function gerarNiveis() {
 }
 const NIVEIS = gerarNiveis();
 
-const RECOMPENSA_PADRAO = "A cada nível, presenteie-se com algo que goste, até R$ 30 — um lanche, um livro, o que fizer sentido pra você.";
+const RECOMPENSAS_PADRAO = [
+  { nivelMinimo: 1, texto: "Algo pequeno que você goste, até R$ 15 (um lanche, um docinho...)" },
+  { nivelMinimo: 6, texto: "Até R$ 30 — um livro, um streaming, uma comidinha melhor" },
+  { nivelMinimo: 16, texto: "Até R$ 60 — uma roupa, um acessório, um jantar fora" },
+  { nivelMinimo: 31, texto: "Até R$ 120 — algo que você vem adiando comprar" },
+  { nivelMinimo: 51, texto: "Uma recompensa grande — uma viagem curta, um equipamento, aquele item especial" },
+];
+
+function obterRecompensaPorNivel(nivel, recompensas) {
+  const lista = Array.isArray(recompensas) && recompensas.length > 0 ? recompensas : RECOMPENSAS_PADRAO;
+  const ordenadas = [...lista].sort((a, b) => a.nivelMinimo - b.nivelMinimo);
+  let atual = ordenadas[0];
+  for (const r of ordenadas) if (nivel >= r.nivelMinimo) atual = r;
+  return atual?.texto || "";
+}
 
 const XP_NAO_FUMAR = 40;
 const XP_NAO_BEBER = 30;
@@ -103,7 +117,11 @@ const METAS_PADRAO = {
   atividadeFisicaMetaMes: "",
   aguaMetaLitros: "",
   gastosFixosPorMes: {},
-  recompensaPorNivel: RECOMPENSA_PADRAO,
+  recompensasPorNivel: RECOMPENSAS_PADRAO,
+  historicoPatrimonio: [],
+  historicoDividas: [],
+  custoDiarioCigarroAntes: "",
+  dataPrevistaBebe: "",
 };
 
 const MODULOS_PRINCIPAIS = [
@@ -113,6 +131,7 @@ const MODULOS_PRINCIPAIS = [
   { chave: "vida", label: "Vida (trabalho, leitura, relacionamento)" },
   { chave: "tarefas", label: "Tarefas e calendário" },
   { chave: "metas", label: "Metas" },
+  { chave: "patrimonio", label: "Patrimônio" },
 ];
 
 const SUB_MODULOS_PADRAO = {
@@ -138,6 +157,18 @@ function contarDiasEntre(inicio, fim) {
   const d1 = new Date(inicio + "T00:00:00");
   const d2 = new Date(fim + "T00:00:00");
   return Math.round((d2 - d1) / 86400000) + 1;
+}
+function projetarPatrimonio(historico, dataAlvo) {
+  const lista = (Array.isArray(historico) ? historico : []).filter((h) => !isNaN(parseFloat(h.valor))).sort((a, b) => a.data.localeCompare(b.data));
+  if (lista.length < 2 || !dataAlvo) return null;
+  const primeiro = lista[0];
+  const ultimo = lista[lista.length - 1];
+  const diasEntre = contarDiasEntre(primeiro.data, ultimo.data);
+  if (diasEntre <= 0) return null;
+  const crescimentoDiario = (parseFloat(ultimo.valor) - parseFloat(primeiro.valor)) / diasEntre;
+  const diasAteAlvo = contarDiasEntre(ultimo.data, dataAlvo);
+  if (diasAteAlvo <= 0) return null;
+  return parseFloat(ultimo.valor) + crescimentoDiario * diasAteAlvo;
 }
 function formatarData(iso) {
   const [y, m, d] = iso.split("-");
@@ -574,9 +605,9 @@ export default function Home() {
 
   useEffect(() => {
     if (!perfil) return;
-    const modulosAtivos = { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true, ...(perfil.modulosAtivos || {}) };
+    const modulosAtivos = { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true, patrimonio: true, ...(perfil.modulosAtivos || {}) };
     if (aba !== "relatorios" && !modulosAtivos[aba]) {
-      const primeiraDisponivel = ["saude", "mental", "financas", "vida", "tarefas", "metas"].find((m) => modulosAtivos[m]);
+      const primeiraDisponivel = ["saude", "mental", "financas", "vida", "tarefas", "metas", "patrimonio"].find((m) => modulosAtivos[m]);
       setAba(primeiraDisponivel || "relatorios");
     }
   }, [perfil, aba]);
@@ -691,7 +722,7 @@ export default function Home() {
     setGoogleConectado(false);
   }
 
-  const modulos = { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true, ...(perfil.modulosAtivos || {}) };
+  const modulos = { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true, patrimonio: true, ...(perfil.modulosAtivos || {}) };
   const subModulos = { ...SUB_MODULOS_PADRAO, ...(perfil.subModulos || {}) };
 
   const TABS = [
@@ -701,6 +732,7 @@ export default function Home() {
     { id: "vida", label: "Vida", Icone: Compass },
     { id: "tarefas", label: "Tarefas", Icone: CalendarDays },
     { id: "metas", label: "Metas", Icone: Target },
+    { id: "patrimonio", label: "Patrimônio", Icone: Landmark },
     { id: "relatorios", label: "Relatórios", Icone: BarChart3 },
   ].filter((tab) => tab.id === "relatorios" || modulos[tab.id]);
 
@@ -767,6 +799,9 @@ export default function Home() {
             {aba === "metas" && (
               <TabMetas dadosPorDia={dadosPorDia} metas={metas} atualizarMetas={atualizarMetas} registro={registro} perfil={perfil} />
             )}
+            {aba === "patrimonio" && (
+              <TabPatrimonio metas={metas} atualizarMetas={atualizarMetas} dadosPorDia={dadosPorDia} />
+            )}
             {aba === "relatorios" && <TabRelatorios dadosPorDia={dadosPorDia} metas={metas} xpTotal={xpTotal} perfil={perfil} />}
           </div>
         </div>
@@ -792,7 +827,7 @@ export default function Home() {
           />
         )}
         {!popupDia && !popupMes && popupNivel && (
-          <PopupNivel nivel={popupNivel} recompensa={metas.recompensaPorNivel} onFechar={() => setPopupNivel(null)} />
+          <PopupNivel nivel={popupNivel} recompensa={obterRecompensaPorNivel(popupNivel, metas.recompensasPorNivel)} onFechar={() => setPopupNivel(null)} />
         )}
 
         <nav className={`fixed bottom-0 left-0 right-0 border-t ${escuro ? "bg-slate-950/95 border-slate-800" : "bg-white/95 border-slate-200"} backdrop-blur-md`}>
@@ -866,7 +901,7 @@ function Onboarding({ onConcluir }) {
   const [form, setForm] = useState({
     nome: "", idade: "", peso: "", sexo: "",
     acompanharCigarro: true, acompanharBebida: true, acompanharRelacionamento: true, acompanharLeitura: true,
-    modulosAtivos: { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true },
+    modulosAtivos: { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true, patrimonio: true },
   });
   const [metasForm, setMetasForm] = useState({ ...METAS_PADRAO });
 
@@ -1228,9 +1263,9 @@ function EditarPerfilModal({ perfil, onSalvar, onCancelar }) {
   const [form, setForm] = useState({
     acompanharCigarro: true, acompanharBebida: true, acompanharRelacionamento: true, acompanharLeitura: true,
     altura: "", percentualGordura: "",
-    modulosAtivos: { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true },
+    modulosAtivos: { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true, patrimonio: true },
     ...perfil,
-    modulosAtivos: { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true, ...(perfil.modulosAtivos || {}) },
+    modulosAtivos: { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true, patrimonio: true, ...(perfil.modulosAtivos || {}) },
     subModulos: { ...SUB_MODULOS_PADRAO, ...(perfil.subModulos || {}) },
   });
   return (
@@ -1902,11 +1937,31 @@ function TabMetas({ dadosPorDia, metas, atualizarMetas, registro, perfil }) {
         <CampoMetaPessoal valor={metas.metaPessoal} onSalvar={(v) => atualizarMetas((m) => ({ ...m, metaPessoal: v }))} />
       </Cartao>
 
-      <Cartao className="mt-4">
-        <Rotulo className="mb-2">🎁 Recompensa a cada nível</Rotulo>
-        <Sutil className="text-xs block mb-3">Toda vez que você sobe de nível, o app mostra essa mensagem pra você. Escreve do jeito que fizer sentido — pode mudar quando quiser.</Sutil>
-        <CampoMetaPessoal valor={metas.recompensaPorNivel} onSalvar={(v) => atualizarMetas((m) => ({ ...m, recompensaPorNivel: v }))} />
-      </Cartao>
+      <Painel Icone={Award} corIcone="text-amber-400">
+        <Sutil className="!text-slate-400 text-sm">Gamificação</Sutil>
+        <p className="text-lg font-semibold">🎁 Recompensas por nível</p>
+        <p className="text-xs text-slate-400 mt-1">Quanto mais alto o nível, maior a recompensa. Edite cada faixa como quiser — é isso que aparece na comemoração quando você sobe de nível.</p>
+      </Painel>
+
+      {(metas.recompensasPorNivel || RECOMPENSAS_PADRAO).map((r, i) => {
+        const lista = metas.recompensasPorNivel || RECOMPENSAS_PADRAO;
+        const proximaFaixa = lista[i + 1];
+        const faixaTexto = proximaFaixa ? `Níveis ${r.nivelMinimo} a ${proximaFaixa.nivelMinimo - 1}` : `A partir do nível ${r.nivelMinimo}`;
+        return (
+          <Cartao key={r.nivelMinimo} className="mt-3">
+            <Rotulo className="mb-2">{faixaTexto}</Rotulo>
+            <CampoArea
+              value={r.texto}
+              onChange={(e) => {
+                const novaLista = lista.map((item) => (item.nivelMinimo === r.nivelMinimo ? { ...item, texto: e.target.value } : item));
+                atualizarMetas((m) => ({ ...m, recompensasPorNivel: novaLista }));
+              }}
+              placeholder="Ex: até R$ 30 em algo que você goste"
+              className="h-16"
+            />
+          </Cartao>
+        );
+      })}
 
       <Cartao className="mt-4">
         <div className="flex items-center gap-2 mb-2">
@@ -2201,8 +2256,194 @@ function TabTarefas({ dadosPorDia, atualizarDia, googleConectado, googleFetch, c
   );
 }
 
+const MARCOS_PATRIMONIO = [10000, 30000, 50000, 100000];
+
+function TabPatrimonio({ metas, atualizarMetas, dadosPorDia }) {
+  const { escuro } = useTema();
+  const [novoPatrimonio, setNovoPatrimonio] = useState("");
+  const [novaDivida, setNovaDivida] = useState("");
+
+  const historicoPatrimonio = Array.isArray(metas.historicoPatrimonio) ? metas.historicoPatrimonio : [];
+  const historicoDividas = Array.isArray(metas.historicoDividas) ? metas.historicoDividas : [];
+
+  const listaPatOrdenada = [...historicoPatrimonio].sort((a, b) => a.data.localeCompare(b.data));
+  const listaDivOrdenada = [...historicoDividas].sort((a, b) => a.data.localeCompare(b.data));
+
+  const patrimonioAtual = listaPatOrdenada.length ? parseFloat(listaPatOrdenada[listaPatOrdenada.length - 1].valor) || 0 : 0;
+  const dividasAtual = listaDivOrdenada.length ? parseFloat(listaDivOrdenada[listaDivOrdenada.length - 1].valor) || 0 : 0;
+  const patrimonioLiquido = patrimonioAtual - dividasAtual;
+
+  function salvarPatrimonio() {
+    if (!novoPatrimonio) return;
+    atualizarMetas((m) => ({ ...m, historicoPatrimonio: registrarHistorico(m.historicoPatrimonio, novoPatrimonio) }));
+    setNovoPatrimonio("");
+  }
+  function salvarDivida() {
+    if (!novaDivida) return;
+    atualizarMetas((m) => ({ ...m, historicoDividas: registrarHistorico(m.historicoDividas, novaDivida) }));
+    setNovaDivida("");
+  }
+
+  const dadosGraficoPatrimonio = listaPatOrdenada.map((h) => ({ data: formatarData(h.data).slice(0, 5), valor: parseFloat(h.valor) })).filter((d) => !isNaN(d.valor));
+  const dadosGraficoDividas = listaDivOrdenada.map((h) => ({ data: formatarData(h.data).slice(0, 5), valor: parseFloat(h.valor) })).filter((d) => !isNaN(d.valor));
+
+  const mesesPatrimonio = {};
+  for (const h of listaPatOrdenada) {
+    const chave = mesDoIso(h.data);
+    mesesPatrimonio[chave] = parseFloat(h.valor);
+  }
+  const dadosGraficoMensalPatrimonio = Object.keys(mesesPatrimonio).sort().map((chave) => ({ mes: nomeMes(chave), Patrimônio: Math.round(mesesPatrimonio[chave]) }));
+
+  const diasSemFumarTotal = Object.values(dadosPorDia).filter((r) => r.fumei === false).length;
+  const custoCigarro = parseFloat(metas.custoDiarioCigarroAntes) || 0;
+  const economiaCigarro = custoCigarro * diasSemFumarTotal;
+
+  const projecaoBebe = projetarPatrimonio(historicoPatrimonio, metas.dataPrevistaBebe);
+
+  const corGrade = escuro ? "#1e293b" : "#f1f5f9";
+  const corTexto = escuro ? "#64748b" : "#94a3b8";
+
+  return (
+    <>
+      <Titulo>Patrimônio</Titulo>
+
+      <Painel Icone={Landmark} corIcone="text-emerald-400">
+        <Sutil className="!text-slate-400 text-sm">Patrimônio líquido</Sutil>
+        <p className={`text-3xl font-bold mt-1 ${patrimonioLiquido < 0 ? "text-rose-400" : "text-white"}`}>
+          R$ {patrimonioLiquido.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </p>
+        <p className="text-xs text-slate-400 mt-2">Ativos (R$ {patrimonioAtual.toFixed(0)}) − Dívidas (R$ {dividasAtual.toFixed(0)})</p>
+      </Painel>
+
+      <div className="grid grid-cols-2 gap-3 mt-6">
+        <Cartao>
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingUp size={15} className="text-emerald-500" />
+            <Rotulo>Patrimônio (ativos)</Rotulo>
+          </div>
+          <p className={`text-lg font-semibold mb-2 ${escuro ? "text-white" : "text-slate-900"}`}>R$ {patrimonioAtual.toFixed(2).replace(".", ",")}</p>
+          <Campo type="number" placeholder="Novo valor" value={novoPatrimonio} onChange={(e) => setNovoPatrimonio(e.target.value)} className="mb-2" />
+          <button onClick={salvarPatrimonio} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg py-2 text-xs font-medium transition active:opacity-80">Atualizar</button>
+        </Cartao>
+        <Cartao>
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingDown size={15} className="text-rose-500" />
+            <Rotulo>Dívidas</Rotulo>
+          </div>
+          <p className={`text-lg font-semibold mb-2 ${escuro ? "text-white" : "text-slate-900"}`}>R$ {dividasAtual.toFixed(2).replace(".", ",")}</p>
+          <Campo type="number" placeholder="Novo valor" value={novaDivida} onChange={(e) => setNovaDivida(e.target.value)} className="mb-2" />
+          <button onClick={salvarDivida} className="w-full bg-rose-600 hover:bg-rose-700 text-white rounded-lg py-2 text-xs font-medium transition active:opacity-80">Atualizar</button>
+        </Cartao>
+      </div>
+
+      <div className="mt-6">
+        <TituloSecao Icone={Target}>Marcos</TituloSecao>
+        <Cartao>
+          <div className="space-y-4">
+            {MARCOS_PATRIMONIO.map((marco) => {
+              const progresso = Math.min(100, Math.max(0, (patrimonioLiquido / marco) * 100));
+              const atingido = patrimonioLiquido >= marco;
+              return (
+                <div key={marco}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <Sutil>R$ {marco.toLocaleString("pt-BR")}</Sutil>
+                    <span className={atingido ? "text-emerald-500 font-medium" : "text-slate-400"}>{progresso.toFixed(0)}%{atingido ? " ✓" : ""}</span>
+                  </div>
+                  <BarraPercentual valor={progresso} cor={atingido ? "bg-emerald-500" : "bg-indigo-600"} />
+                </div>
+              );
+            })}
+          </div>
+        </Cartao>
+      </div>
+
+      {dadosGraficoPatrimonio.length > 1 && (
+        <div className="mt-6">
+          <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Evolução do patrimônio</h2>
+          <Cartao className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={dadosGraficoPatrimonio}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={corGrade} />
+                <XAxis dataKey="data" tick={{ fontSize: 10, fill: corTexto }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
+                <Tooltip />
+                <Line type="monotone" dataKey="valor" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </Cartao>
+        </div>
+      )}
+
+      {dadosGraficoDividas.length > 1 && (
+        <div className="mt-6">
+          <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Evolução das dívidas</h2>
+          <Cartao className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={dadosGraficoDividas}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={corGrade} />
+                <XAxis dataKey="data" tick={{ fontSize: 10, fill: corTexto }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
+                <Tooltip />
+                <Line type="monotone" dataKey="valor" stroke="#f43f5e" strokeWidth={2} dot={{ r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </Cartao>
+        </div>
+      )}
+
+      {dadosGraficoMensalPatrimonio.length > 1 && (
+        <div className="mt-6">
+          <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Evolução mês a mês</h2>
+          <Cartao className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dadosGraficoMensalPatrimonio}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={corGrade} />
+                <XAxis dataKey="mes" tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: corTexto }} axisLine={false} tickLine={false} />
+                <Tooltip />
+                <Bar dataKey="Patrimônio" fill="#6366f1" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Cartao>
+        </div>
+      )}
+
+      <div className="mt-6">
+        <TituloSecao Icone={Cigarette}>Economia por não fumar</TituloSecao>
+        <Cartao>
+          <Sutil className="text-xs block mb-2">Quanto você gastava por dia com cigarro antes de parar?</Sutil>
+          <Campo type="number" placeholder="ex: 12.00" value={metas.custoDiarioCigarroAntes} onChange={(e) => atualizarMetas((m) => ({ ...m, custoDiarioCigarroAntes: e.target.value }))} className="mb-3" />
+          <p className="text-xs text-slate-400">{diasSemFumarTotal} dia(s) sem fumar registrados</p>
+          <p className="text-2xl font-bold text-emerald-500 mt-1">R$ {economiaCigarro.toFixed(2).replace(".", ",")}</p>
+          <Sutil className="text-xs">economizados até agora</Sutil>
+        </Cartao>
+      </div>
+
+      <div className="mt-6">
+        <TituloSecao Icone={Baby}>Projeção até o bebê</TituloSecao>
+        <Cartao>
+          <Sutil className="text-xs block mb-2">Data prevista do nascimento</Sutil>
+          <Campo type="date" value={metas.dataPrevistaBebe} onChange={(e) => atualizarMetas((m) => ({ ...m, dataPrevistaBebe: e.target.value }))} className="mb-3" />
+          {!metas.dataPrevistaBebe && <Sutil className="text-xs">Defina a data pra ver a projeção.</Sutil>}
+          {metas.dataPrevistaBebe && projecaoBebe === null && (
+            <Sutil className="text-xs">Registre o patrimônio em pelo menos 2 datas diferentes pra calcular a tendência.</Sutil>
+          )}
+          {projecaoBebe !== null && (
+            <>
+              <p className={`text-2xl font-bold mt-1 ${projecaoBebe >= 0 ? "text-indigo-500" : "text-rose-500"}`}>
+                R$ {projecaoBebe.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+              <Sutil className="text-xs">projeção de patrimônio (ativos) pra essa data, baseado no seu ritmo de crescimento atual</Sutil>
+            </>
+          )}
+        </Cartao>
+      </div>
+    </>
+  );
+}
+
 function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
-  const modulos = { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true, ...(perfil.modulosAtivos || {}) };
+  const modulos = { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true, patrimonio: true, ...(perfil.modulosAtivos || {}) };
   const acompanhaCigarroRel = perfil.acompanharCigarro !== false;
   const acompanhaBebidaRel = perfil.acompanharBebida !== false;
   const { escuro } = useTema();
