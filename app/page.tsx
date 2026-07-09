@@ -811,7 +811,7 @@ export default function Home() {
               <TabMetas dadosPorDia={dadosPorDia} metas={metas} atualizarMetas={atualizarMetas} registro={registro} perfil={perfil} />
             )}
             {aba === "patrimonio" && (
-              <TabPatrimonio metas={metas} atualizarMetas={atualizarMetas} dadosPorDia={dadosPorDia} subModulos={subModulos} />
+              <TabPatrimonio metas={metas} atualizarMetas={atualizarMetas} dadosPorDia={dadosPorDia} subModulos={subModulos} registro={registro} atualizarRegistro={atualizarRegistro} diaSelecionado={dataSelecionada} />
             )}
             {aba === "relatorios" && <TabRelatorios dadosPorDia={dadosPorDia} metas={metas} xpTotal={xpTotal} perfil={perfil} />}
           </div>
@@ -1367,7 +1367,6 @@ function EditarPerfilModal({ perfil, onSalvar, onCancelar }) {
         <Sutil className="text-xs block mb-2 font-medium">💰 Finanças</Sutil>
         <div className="space-y-2 mb-4">
           <ToggleLinha escuro={escuro} label="Gastos do dia" checked={form.subModulos.gastosDiarios} onChange={(v) => setForm({ ...form, subModulos: { ...form.subModulos, gastosDiarios: v } })} />
-          <ToggleLinha escuro={escuro} label="Investimento" checked={form.subModulos.investimento} onChange={(v) => setForm({ ...form, subModulos: { ...form.subModulos, investimento: v } })} />
           <ToggleLinha escuro={escuro} label="Gastos fixos" checked={form.subModulos.gastosFixos} onChange={(v) => setForm({ ...form, subModulos: { ...form.subModulos, gastosFixos: v } })} />
         </div>
 
@@ -1764,10 +1763,7 @@ function TabMental({ registro, atualizarRegistro }) {
 function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSelecionado, diaSelecionado, subModulos }) {
   const { escuro } = useTema();
   const [novoGasto, setNovoGasto] = useState({ desc: "", valor: "", categoria: "", fixo: false, pagamentoDivida: false });
-  const [novoInvest, setNovoInvest] = useState({ valor: "", banco: "", tipo: "", liquidez: "" });
-  const [novoResgate, setNovoResgate] = useState({ valor: "", banco: "" });
   const totalGasto = registro.gastos.reduce((s, g) => s + g.valor, 0);
-  const totalInvestido = registro.investimentos.reduce((s, i) => s + i.valor, 0);
   const meta = parseFloat(metas.gastoDiario) || 0;
   const dentroDaMeta = meta > 0 ? totalGasto <= meta : null;
 
@@ -1784,28 +1780,6 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSe
     setNovoGasto({ desc: "", valor: "", categoria: novoGasto.categoria, fixo: false, pagamentoDivida: false });
   }
   function removerGasto(id) { atualizarRegistro((r) => ({ ...r, gastos: r.gastos.filter((g) => g.id !== id) })); }
-
-  function adicionarInvestimento() {
-    if (!novoInvest.valor) return;
-    const valorNum = parseFloat(novoInvest.valor);
-    atualizarRegistro((r) => ({ ...r, investimentos: [...r.investimentos, { id: Date.now(), valor: valorNum }] }));
-    atualizarMetas((m) => ({
-      ...m,
-      investimentosDetalhados: [...(Array.isArray(m.investimentosDetalhados) ? m.investimentosDetalhados : []), { id: Date.now() + 1, data: diaSelecionado, banco: novoInvest.banco || "Não especificado", tipo: novoInvest.tipo, liquidez: novoInvest.liquidez, valor: valorNum }],
-    }));
-    setNovoInvest({ valor: "", banco: novoInvest.banco, tipo: novoInvest.tipo, liquidez: novoInvest.liquidez });
-  }
-  function removerInvestimento(id) { atualizarRegistro((r) => ({ ...r, investimentos: r.investimentos.filter((i) => i.id !== id) })); }
-
-  function adicionarResgate() {
-    if (!novoResgate.valor) return;
-    const valorNum = parseFloat(novoResgate.valor);
-    atualizarMetas((m) => ({
-      ...m,
-      investimentosDetalhados: [...(Array.isArray(m.investimentosDetalhados) ? m.investimentosDetalhados : []), { id: Date.now(), data: diaSelecionado, banco: novoResgate.banco || "Resgate", tipo: "Resgate", liquidez: "", valor: -valorNum }],
-    }));
-    setNovoResgate({ valor: "", banco: "" });
-  }
 
   return (
     <>
@@ -1878,62 +1852,6 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSe
         ))}
       </div>
       </>
-      )}
-
-      {subModulos.investimento && (
-      <div className="mt-8">
-        <TituloSecao Icone={PiggyBank}>Investimento do dia</TituloSecao>
-        <Sutil className="text-xs block mb-3">Isso já entra automaticamente no seu Patrimônio (ativos).</Sutil>
-        <Cartao>
-          <p className="text-2xl font-semibold text-emerald-500 mb-3">R$ {totalInvestido.toFixed(2).replace(".", ",")}</p>
-          <Campo placeholder="Banco/instituição (ex: Nubank)" value={novoInvest.banco} onChange={(e) => setNovoInvest({ ...novoInvest, banco: e.target.value })} className="mb-2" />
-          <div className="flex gap-2 mb-2">
-            <div className="flex-1 min-w-0">
-              <CampoSelect value={novoInvest.tipo} onChange={(e) => setNovoInvest({ ...novoInvest, tipo: e.target.value })}>
-                <option value="">Tipo</option>
-                {TIPOS_INVESTIMENTO.map((t) => <option key={t} value={t}>{t}</option>)}
-              </CampoSelect>
-            </div>
-            <div className="flex-1 min-w-0">
-              <CampoSelect value={novoInvest.liquidez} onChange={(e) => setNovoInvest({ ...novoInvest, liquidez: e.target.value })}>
-                <option value="">Liquidez</option>
-                {LIQUIDEZ_INVESTIMENTO.map((l) => <option key={l} value={l}>{l}</option>)}
-              </CampoSelect>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <div className="flex-1 min-w-0">
-              <Campo placeholder="Quanto investiu?" type="number" value={novoInvest.valor} onChange={(e) => setNovoInvest({ ...novoInvest, valor: e.target.value })} />
-            </div>
-            <button onClick={adicionarInvestimento} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 text-sm font-medium transition active:opacity-80">Add</button>
-          </div>
-          <div className="space-y-2 mt-3">
-            {registro.investimentos.map((i) => (
-              <div key={i.id} className="flex items-center justify-between text-sm">
-                <Sutil>Aporte</Sutil>
-                <div className="flex items-center gap-3">
-                  <span className="text-emerald-500 font-medium">R$ {i.valor.toFixed(2).replace(".", ",")}</span>
-                  <button onClick={() => removerInvestimento(i.id)} className="text-slate-400">✕</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Cartao>
-
-        <Cartao className="mt-3">
-          <Rotulo className="mb-2">Resgatou algum valor?</Rotulo>
-          <Sutil className="text-xs block mb-2">Isso já desconta automaticamente do seu Patrimônio (ativos).</Sutil>
-          <div className="flex gap-2">
-            <div className="flex-1 min-w-0">
-              <Campo placeholder="De onde? (opcional)" value={novoResgate.banco} onChange={(e) => setNovoResgate({ ...novoResgate, banco: e.target.value })} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <Campo placeholder="Valor" type="number" value={novoResgate.valor} onChange={(e) => setNovoResgate({ ...novoResgate, valor: e.target.value })} />
-            </div>
-            <button onClick={adicionarResgate} className="bg-rose-600 hover:bg-rose-700 text-white rounded-lg px-4 text-sm font-medium transition active:opacity-80">Add</button>
-          </div>
-        </Cartao>
-      </div>
       )}
     </>
   );
@@ -2377,10 +2295,11 @@ function TabTarefas({ dadosPorDia, atualizarDia, googleConectado, googleFetch, c
   );
 }
 
-function TabPatrimonio({ metas, atualizarMetas, dadosPorDia, subModulos }) {
+function TabPatrimonio({ metas, atualizarMetas, dadosPorDia, subModulos, registro, atualizarRegistro, diaSelecionado }) {
   const { escuro } = useTema();
   const [novaDivida, setNovaDivida] = useState({ descricao: "", valor: "" });
   const [novoInvestDet, setNovoInvestDet] = useState({ banco: "", tipo: "", liquidez: "", valor: "" });
+  const [novoResgate, setNovoResgate] = useState({ valor: "", banco: "" });
 
   const investimentosDetalhados = Array.isArray(metas.investimentosDetalhados) ? metas.investimentosDetalhados : [];
   const dividasLancamentos = Array.isArray(metas.dividasLancamentos) ? metas.dividasLancamentos : [];
@@ -2391,20 +2310,33 @@ function TabPatrimonio({ metas, atualizarMetas, dadosPorDia, subModulos }) {
 
   function adicionarInvestimentoDetalhado() {
     if (!novoInvestDet.banco || !novoInvestDet.valor) return;
+    const valorNum = parseFloat(novoInvestDet.valor);
     atualizarMetas((m) => ({
       ...m,
-      investimentosDetalhados: [...(Array.isArray(m.investimentosDetalhados) ? m.investimentosDetalhados : []), { id: Date.now(), data: hojeISO(), ...novoInvestDet }],
+      investimentosDetalhados: [...(Array.isArray(m.investimentosDetalhados) ? m.investimentosDetalhados : []), { id: Date.now(), data: diaSelecionado, banco: novoInvestDet.banco, tipo: novoInvestDet.tipo, liquidez: novoInvestDet.liquidez, valor: valorNum }],
     }));
+    if (atualizarRegistro) {
+      atualizarRegistro((r) => ({ ...r, investimentos: [...r.investimentos, { id: Date.now() + 1, valor: valorNum }] }));
+    }
     setNovoInvestDet({ banco: "", tipo: "", liquidez: "", valor: "" });
   }
   function removerInvestimentoDetalhado(id) {
     atualizarMetas((m) => ({ ...m, investimentosDetalhados: (Array.isArray(m.investimentosDetalhados) ? m.investimentosDetalhados : []).filter((i) => i.id !== id) }));
   }
+  function adicionarResgate() {
+    if (!novoResgate.valor) return;
+    const valorNum = parseFloat(novoResgate.valor);
+    atualizarMetas((m) => ({
+      ...m,
+      investimentosDetalhados: [...(Array.isArray(m.investimentosDetalhados) ? m.investimentosDetalhados : []), { id: Date.now(), data: diaSelecionado, banco: novoResgate.banco || "Resgate", tipo: "Resgate", liquidez: "", valor: -valorNum }],
+    }));
+    setNovoResgate({ valor: "", banco: "" });
+  }
   function adicionarDivida() {
     if (!novaDivida.descricao || !novaDivida.valor) return;
     atualizarMetas((m) => ({
       ...m,
-      dividasLancamentos: [...(Array.isArray(m.dividasLancamentos) ? m.dividasLancamentos : []), { id: Date.now(), data: hojeISO(), descricao: novaDivida.descricao, valor: parseFloat(novaDivida.valor) }],
+      dividasLancamentos: [...(Array.isArray(m.dividasLancamentos) ? m.dividasLancamentos : []), { id: Date.now(), data: diaSelecionado, descricao: novaDivida.descricao, valor: parseFloat(novaDivida.valor) }],
     }));
     setNovaDivida({ descricao: "", valor: "" });
   }
@@ -2496,6 +2428,20 @@ function TabPatrimonio({ metas, atualizarMetas, dadosPorDia, subModulos }) {
                 </div>
               </div>
             ))}
+          </div>
+        </Cartao>
+
+        <Cartao className="mt-3">
+          <Rotulo className="mb-2">Resgatou algum valor?</Rotulo>
+          <Sutil className="text-xs block mb-2">Isso já desconta automaticamente do seu Patrimônio (ativos).</Sutil>
+          <div className="flex gap-2">
+            <div className="flex-1 min-w-0">
+              <Campo placeholder="De onde? (opcional)" value={novoResgate.banco} onChange={(e) => setNovoResgate({ ...novoResgate, banco: e.target.value })} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <Campo placeholder="Valor" type="number" value={novoResgate.valor} onChange={(e) => setNovoResgate({ ...novoResgate, valor: e.target.value })} />
+            </div>
+            <button onClick={adicionarResgate} className="bg-rose-600 hover:bg-rose-700 text-white rounded-lg px-4 text-sm font-medium transition active:opacity-80">Add</button>
           </div>
         </Cartao>
       </div>
@@ -2621,7 +2567,9 @@ function TabPatrimonio({ metas, atualizarMetas, dadosPorDia, subModulos }) {
         <TituloSecao Icone={Baby}>Projeção até o bebê</TituloSecao>
         <Cartao>
           <Sutil className="text-xs block mb-2">Data prevista do nascimento</Sutil>
-          <Campo type="date" value={metas.dataPrevistaBebe} onChange={(e) => atualizarMetas((m) => ({ ...m, dataPrevistaBebe: e.target.value }))} className="mb-3" />
+          <div className="w-full overflow-hidden rounded-lg mb-3">
+            <Campo type="date" value={metas.dataPrevistaBebe} onChange={(e) => atualizarMetas((m) => ({ ...m, dataPrevistaBebe: e.target.value }))} className="w-full max-w-full box-border" />
+          </div>
           {!metas.dataPrevistaBebe && <Sutil className="text-xs">Defina a data pra ver a projeção.</Sutil>}
           {metas.dataPrevistaBebe && projecaoBebe === null && (
             <Sutil className="text-xs">Registre investimentos em pelo menos 2 datas diferentes pra calcular a tendência.</Sutil>
