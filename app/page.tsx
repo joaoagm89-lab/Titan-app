@@ -10,7 +10,7 @@ import {
   Activity, Brain, Wallet, Compass, Target, BarChart3,
   Sun, Moon, ChevronLeft, ChevronRight, Pencil, Cigarette, CigaretteOff, CalendarDays, Plus,
   Dumbbell, Droplets, Scale, UtensilsCrossed, TrendingUp, Briefcase,
-  BookOpen, Heart, Users, Flame, Timer, Zap, PiggyBank, Award, LogOut, Wine, Receipt, Landmark, TrendingDown, Baby, Menu, Check,
+  BookOpen, Heart, Users, Flame, Timer, Zap, PiggyBank, Award, LogOut, Wine, Receipt, Landmark, TrendingDown, Baby, Menu, Check, User, Camera,
 } from "lucide-react";
 
 const TIPOS_ATIVIDADE = [
@@ -122,6 +122,7 @@ const METAS_PADRAO = {
   gastosFixosPorMes: {},
   recompensasPorNivel: RECOMPENSAS_PADRAO,
   dividasLancamentos: [],
+  outrosAtivosManual: "",
   custoDiarioCigarroAntes: "",
   dataPrevistaBebe: "",
   investimentosDetalhados: [],
@@ -769,9 +770,7 @@ export default function Home() {
       <main className={`min-h-screen pb-28 transition-colors duration-300 ${escuro ? "bg-slate-950" : "bg-slate-50"}`}>
         <div className="max-w-md mx-auto px-5 py-8">
           <div className="flex items-center justify-between mb-6">
-            <button onClick={() => setEditandoPerfil(true)} className={`w-9 h-9 rounded-lg border flex items-center justify-center transition active:opacity-70 ${escuro ? "bg-slate-900 border-slate-800 text-slate-400" : "bg-white border-slate-200 text-slate-500"}`}>
-              <Pencil size={15} />
-            </button>
+            <div className="w-9 h-9" />
             <SeletorData dataSelecionada={dataSelecionada} setDataSelecionada={mudarData} dataLimite={dataLimite} />
             <BotaoTema />
           </div>
@@ -811,7 +810,7 @@ export default function Home() {
               <TabMetas dadosPorDia={dadosPorDia} metas={metas} atualizarMetas={atualizarMetas} registro={registro} perfil={perfil} />
             )}
             {aba === "patrimonio" && (
-              <TabPatrimonio metas={metas} atualizarMetas={atualizarMetas} dadosPorDia={dadosPorDia} subModulos={subModulos} registro={registro} atualizarRegistro={atualizarRegistro} diaSelecionado={dataSelecionada} />
+              <TabPatrimonio metas={metas} atualizarMetas={atualizarMetas} dadosPorDia={dadosPorDia} subModulos={subModulos} registro={registro} atualizarRegistro={atualizarRegistro} atualizarDia={atualizarDia} diaSelecionado={dataSelecionada} />
             )}
             {aba === "relatorios" && <TabRelatorios dadosPorDia={dadosPorDia} metas={metas} xpTotal={xpTotal} perfil={perfil} />}
           </div>
@@ -868,6 +867,20 @@ export default function Home() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className={`w-10 h-1 rounded-full mx-auto mb-3 ${escuro ? "bg-slate-700" : "bg-slate-300"}`} />
+              <button
+                onClick={() => { navigator.vibrate?.(8); setEditandoPerfil(true); setMenuAbaAberto(false); }}
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-lg transition active:opacity-70"
+              >
+                {perfil.fotoUrl ? (
+                  <img src={perfil.fotoUrl} alt="" className="w-7 h-7 rounded-full object-cover" />
+                ) : (
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center ${escuro ? "bg-slate-800" : "bg-slate-200"}`}>
+                    <User size={14} className={escuro ? "text-slate-400" : "text-slate-500"} />
+                  </div>
+                )}
+                <span className={`text-sm flex-1 text-left ${escuro ? "text-slate-300" : "text-slate-600"}`}>Perfil</span>
+              </button>
+              <div className={`h-px my-1 ${escuro ? "bg-slate-800" : "bg-slate-100"}`} />
               {TABS.map((tab) => {
                 const ativo = aba === tab.id;
                 return (
@@ -935,7 +948,7 @@ function calcularXpTotal(dadosPorDia, metas) {
   const investimentosDet = Array.isArray(metas.investimentosDetalhados) ? metas.investimentosDetalhados : [];
   const dividasLanc = Array.isArray(metas.dividasLancamentos) ? metas.dividasLancamentos : [];
   if (investimentosDet.length > 0) {
-    const patAtual = investimentosDet.reduce((s, i) => s + (parseFloat(i.valor) || 0), 0);
+    const patAtual = investimentosDet.reduce((s, i) => s + (parseFloat(i.valor) || 0), 0) + (parseFloat(metas.outrosAtivosManual) || 0);
     const divAtual = dividasLanc.reduce((s, i) => s + (parseFloat(i.valor) || 0), 0);
     const liquido = patAtual - divAtual;
     for (const marco of MARCOS_PATRIMONIO) {
@@ -1310,11 +1323,32 @@ function ToggleLinha({ label, checked, onChange, escuro }) {
   );
 }
 
+function processarFoto(arquivo, callback) {
+  const leitor = new FileReader();
+  leitor.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const tamanho = 300;
+      const canvas = document.createElement("canvas");
+      canvas.width = tamanho;
+      canvas.height = tamanho;
+      const ctx = canvas.getContext("2d");
+      const lado = Math.min(img.width, img.height);
+      const sx = (img.width - lado) / 2;
+      const sy = (img.height - lado) / 2;
+      ctx.drawImage(img, sx, sy, lado, lado, 0, 0, tamanho, tamanho);
+      callback(canvas.toDataURL("image/jpeg", 0.8));
+    };
+    img.src = e.target.result;
+  };
+  leitor.readAsDataURL(arquivo);
+}
+
 function EditarPerfilModal({ perfil, onSalvar, onCancelar }) {
   const { escuro } = useTema();
   const [form, setForm] = useState({
     acompanharCigarro: true, acompanharBebida: true, acompanharRelacionamento: true, acompanharLeitura: true,
-    altura: "", percentualGordura: "",
+    altura: "", percentualGordura: "", fotoUrl: "", salarioLiquido: "",
     modulosAtivos: { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true, patrimonio: true },
     ...perfil,
     modulosAtivos: { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true, patrimonio: true, ...(perfil.modulosAtivos || {}) },
@@ -1324,12 +1358,38 @@ function EditarPerfilModal({ perfil, onSalvar, onCancelar }) {
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center px-6 z-50">
       <div className={`rounded-xl p-6 max-w-sm w-full border max-h-[85vh] overflow-y-auto ${escuro ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
         <h3 className={`font-semibold text-lg mb-4 ${escuro ? "text-white" : "text-slate-900"}`}>Editar perfil</h3>
+
+        <div className="flex justify-center mb-5">
+          <label className="relative cursor-pointer group">
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const arquivo = e.target.files?.[0];
+                if (arquivo) processarFoto(arquivo, (url) => setForm((f) => ({ ...f, fotoUrl: url })));
+              }}
+            />
+            {form.fotoUrl ? (
+              <img src={form.fotoUrl} alt="" className="w-24 h-24 rounded-full object-cover border-4 border-indigo-500/30" />
+            ) : (
+              <div className={`w-24 h-24 rounded-full flex items-center justify-center border-4 border-indigo-500/30 ${escuro ? "bg-slate-800" : "bg-slate-100"}`}>
+                <User size={36} className={escuro ? "text-slate-500" : "text-slate-400"} />
+              </div>
+            )}
+            <div className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center border-2 border-slate-900">
+              <Camera size={14} className="text-white" />
+            </div>
+          </label>
+        </div>
+
         <div className="space-y-3">
           <Campo placeholder="Nome" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
           <Campo placeholder="Idade" type="number" value={form.idade} onChange={(e) => setForm({ ...form, idade: e.target.value })} />
           <Campo placeholder="Peso (kg)" type="number" value={form.peso} onChange={(e) => setForm({ ...form, peso: e.target.value })} />
           <Campo placeholder="Altura (cm)" type="number" value={form.altura} onChange={(e) => setForm({ ...form, altura: e.target.value })} />
           <Campo placeholder="% de gordura (opcional)" type="number" value={form.percentualGordura} onChange={(e) => setForm({ ...form, percentualGordura: e.target.value })} />
+          <Campo placeholder="Salário líquido (opcional)" type="number" value={form.salarioLiquido} onChange={(e) => setForm({ ...form, salarioLiquido: e.target.value })} />
           <CampoSelect value={form.sexo} onChange={(e) => setForm({ ...form, sexo: e.target.value })}>
             <option value="masculino">Masculino</option>
             <option value="feminino">Feminino</option>
@@ -1389,7 +1449,7 @@ function EditarPerfilModal({ perfil, onSalvar, onCancelar }) {
         <div className="flex gap-3 mt-6">
           <button onClick={onCancelar} className={`flex-1 rounded-lg py-2 text-sm transition active:opacity-70 border ${escuro ? "border-slate-700 text-slate-200" : "border-slate-200 text-slate-700"}`}>Cancelar</button>
           <button
-            onClick={() => onSalvar({ ...form, historicoPeso: registrarHistorico(form.historicoPeso, form.peso), historicoGordura: registrarHistorico(form.historicoGordura, form.percentualGordura) })}
+            onClick={() => onSalvar({ ...form, historicoPeso: registrarHistorico(form.historicoPeso, form.peso), historicoGordura: registrarHistorico(form.historicoGordura, form.percentualGordura), historicoSalario: registrarHistorico(form.historicoSalario, form.salarioLiquido) })}
             className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2 text-sm font-medium transition active:opacity-80"
           >
             Salvar
@@ -1764,8 +1824,9 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSe
   const { escuro } = useTema();
   const [novoGasto, setNovoGasto] = useState({ desc: "", valor: "", categoria: "", fixo: false, pagamentoDivida: false });
   const totalGasto = registro.gastos.reduce((s, g) => s + g.valor, 0);
+  const totalGastoVariavel = registro.gastos.filter((g) => !g.fixo).reduce((s, g) => s + g.valor, 0);
   const meta = parseFloat(metas.gastoDiario) || 0;
-  const dentroDaMeta = meta > 0 ? totalGasto <= meta : null;
+  const dentroDaMeta = meta > 0 ? totalGastoVariavel <= meta : null;
 
   function adicionarGasto() {
     if (!novoGasto.desc || !novoGasto.valor) return;
@@ -1792,6 +1853,9 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSe
           <div>
             <Sutil className="!text-slate-400 text-sm">Total gasto neste dia</Sutil>
             <p className="text-2xl font-semibold mt-1">R$ {totalGasto.toFixed(2).replace(".", ",")}</p>
+            {totalGasto !== totalGastoVariavel && (
+              <Sutil className="text-xs">R$ {totalGastoVariavel.toFixed(2).replace(".", ",")} sem contar os fixos</Sutil>
+            )}
           </div>
           {dentroDaMeta !== null && (
             <span className={`text-xs px-2 py-1 rounded-md font-medium ${dentroDaMeta ? "bg-emerald-500/15 text-emerald-400" : "bg-rose-500/15 text-rose-400"}`}>
@@ -1799,7 +1863,7 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSe
             </span>
           )}
         </div>
-        <p className="text-xs text-slate-400 mt-2">Meta diária: R$ {meta ? meta.toFixed(2).replace(".", ",") : "não definida"}</p>
+        <p className="text-xs text-slate-400 mt-2">Meta diária (sem fixos): R$ {meta ? meta.toFixed(2).replace(".", ",") : "não definida"}</p>
       </Painel>
 
       <Cartao className="mt-4">
@@ -2295,7 +2359,7 @@ function TabTarefas({ dadosPorDia, atualizarDia, googleConectado, googleFetch, c
   );
 }
 
-function TabPatrimonio({ metas, atualizarMetas, dadosPorDia, subModulos, registro, atualizarRegistro, diaSelecionado }) {
+function TabPatrimonio({ metas, atualizarMetas, dadosPorDia, subModulos, registro, atualizarRegistro, atualizarDia, diaSelecionado }) {
   const { escuro } = useTema();
   const [novaDivida, setNovaDivida] = useState({ descricao: "", valor: "" });
   const [novoInvestDet, setNovoInvestDet] = useState({ banco: "", tipo: "", liquidez: "", valor: "" });
@@ -2304,24 +2368,29 @@ function TabPatrimonio({ metas, atualizarMetas, dadosPorDia, subModulos, registr
   const investimentosDetalhados = Array.isArray(metas.investimentosDetalhados) ? metas.investimentosDetalhados : [];
   const dividasLancamentos = Array.isArray(metas.dividasLancamentos) ? metas.dividasLancamentos : [];
 
-  const patrimonioAtual = investimentosDetalhados.reduce((s, i) => s + (parseFloat(i.valor) || 0), 0);
+  const outrosAtivos = parseFloat(metas.outrosAtivosManual) || 0;
+  const patrimonioAtual = investimentosDetalhados.reduce((s, i) => s + (parseFloat(i.valor) || 0), 0) + outrosAtivos;
   const dividasAtual = dividasLancamentos.reduce((s, i) => s + (parseFloat(i.valor) || 0), 0);
   const patrimonioLiquido = patrimonioAtual - dividasAtual;
 
   function adicionarInvestimentoDetalhado() {
     if (!novoInvestDet.banco || !novoInvestDet.valor) return;
     const valorNum = parseFloat(novoInvestDet.valor);
+    const idComum = Date.now();
     atualizarMetas((m) => ({
       ...m,
-      investimentosDetalhados: [...(Array.isArray(m.investimentosDetalhados) ? m.investimentosDetalhados : []), { id: Date.now(), data: diaSelecionado, banco: novoInvestDet.banco, tipo: novoInvestDet.tipo, liquidez: novoInvestDet.liquidez, valor: valorNum }],
+      investimentosDetalhados: [...(Array.isArray(m.investimentosDetalhados) ? m.investimentosDetalhados : []), { id: idComum, data: diaSelecionado, banco: novoInvestDet.banco, tipo: novoInvestDet.tipo, liquidez: novoInvestDet.liquidez, valor: valorNum }],
     }));
-    if (atualizarRegistro) {
-      atualizarRegistro((r) => ({ ...r, investimentos: [...r.investimentos, { id: Date.now() + 1, valor: valorNum }] }));
+    if (atualizarDia) {
+      atualizarDia(diaSelecionado, (r) => ({ ...r, investimentos: [...(r.investimentos || []), { id: idComum, valor: valorNum }] }));
     }
     setNovoInvestDet({ banco: "", tipo: "", liquidez: "", valor: "" });
   }
-  function removerInvestimentoDetalhado(id) {
-    atualizarMetas((m) => ({ ...m, investimentosDetalhados: (Array.isArray(m.investimentosDetalhados) ? m.investimentosDetalhados : []).filter((i) => i.id !== id) }));
+  function removerInvestimentoDetalhado(item) {
+    atualizarMetas((m) => ({ ...m, investimentosDetalhados: (Array.isArray(m.investimentosDetalhados) ? m.investimentosDetalhados : []).filter((i) => i.id !== item.id) }));
+    if (atualizarDia && item.tipo !== "Resgate" && item.data) {
+      atualizarDia(item.data, (r) => ({ ...r, investimentos: (r.investimentos || []).filter((i) => i.id !== item.id) }));
+    }
   }
   function adicionarResgate() {
     if (!novoResgate.valor) return;
@@ -2385,6 +2454,12 @@ function TabPatrimonio({ metas, atualizarMetas, dadosPorDia, subModulos, registr
         <p className="text-xs text-slate-400 mt-2">Ativos (R$ {patrimonioAtual.toFixed(0)}) − Dívidas (R$ {dividasAtual.toFixed(0)})</p>
       </Painel>
 
+      <Cartao className="mt-3">
+        <Rotulo className="mb-2">Outros ativos (editável)</Rotulo>
+        <Sutil className="text-xs block mb-2">Pra somar coisas que não são "investimento" — imóvel, dinheiro parado, etc. Isso soma direto no Patrimônio (ativos), além do que já vem dos investimentos lançados.</Sutil>
+        <Campo type="number" placeholder="ex: 50000" value={metas.outrosAtivosManual} onChange={(e) => atualizarMetas((m) => ({ ...m, outrosAtivosManual: e.target.value }))} />
+      </Cartao>
+
       {subModulos.investimentosDetalhados && (
       <div className="mt-6">
         <TituloSecao Icone={PiggyBank}>Meus investimentos</TituloSecao>
@@ -2419,7 +2494,7 @@ function TabPatrimonio({ metas, atualizarMetas, dadosPorDia, subModulos, registr
                     <span className={`text-sm font-medium ${parseFloat(i.valor) < 0 ? "text-rose-400" : escuro ? "text-white" : "text-slate-900"}`}>
                       {parseFloat(i.valor) < 0 ? "− " : ""}R$ {Math.abs(parseFloat(i.valor) || 0).toFixed(2).replace(".", ",")}
                     </span>
-                    <button onClick={() => removerInvestimentoDetalhado(i.id)} className="text-slate-400">✕</button>
+                    <button onClick={() => removerInvestimentoDetalhado(i)} className="text-slate-400">✕</button>
                   </div>
                 </div>
                 <div className="flex gap-2 mt-1">
@@ -2592,6 +2667,7 @@ function TabPatrimonio({ metas, atualizarMetas, dadosPorDia, subModulos, registr
 function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
   const modulos = { saude: true, mental: true, financas: true, vida: true, tarefas: true, metas: true, patrimonio: true, ...(perfil.modulosAtivos || {}) };
   const acompanhaCigarroRel = perfil.acompanharCigarro !== false;
+  const subModulosRel = { ...SUB_MODULOS_PADRAO, ...(perfil.subModulos || {}) };
   const acompanhaBebidaRel = perfil.acompanharBebida !== false;
   const { escuro } = useTema();
   const [modo, setModo] = useState("mensal");
@@ -2681,7 +2757,9 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
     { label: "Gasto (total)", valor: `R$ ${totalGastoGeral.toFixed(0)}`, Icone: Wallet, moduloReq: "financas" },
     { label: "Gasto médio diário", valor: `R$ ${gastoMedioDiarioGeral.toFixed(2).replace(".", ",")}`, Icone: Wallet, moduloReq: "financas" },
     { label: "Gastos fixos (total)", valor: `R$ ${totalFixosGeral.toFixed(0)}`, Icone: Receipt, moduloReq: "financas" },
-    { label: "Patrimônio total", valor: `R$ ${(Array.isArray(metas.investimentosDetalhados) ? metas.investimentosDetalhados : []).reduce((s, i) => s + (parseFloat(i.valor) || 0), 0).toFixed(0)}`, Icone: Landmark, moduloReq: "patrimonio" },
+    { label: "Patrimônio total", valor: `R$ ${((Array.isArray(metas.investimentosDetalhados) ? metas.investimentosDetalhados : []).reduce((s, i) => s + (parseFloat(i.valor) || 0), 0) + (parseFloat(metas.outrosAtivosManual) || 0)).toFixed(0)}`, Icone: Landmark, moduloReq: "patrimonio" },
+    { label: "Dívidas (total)", valor: `R$ ${(Array.isArray(metas.dividasLancamentos) ? metas.dividasLancamentos : []).reduce((s, d) => s + (parseFloat(d.valor) || 0), 0).toFixed(0)}`, Icone: TrendingDown, moduloReq: "patrimonio", extra: subModulosRel.dividas },
+    { label: "Resgates (total)", valor: `R$ ${Math.abs((Array.isArray(metas.investimentosDetalhados) ? metas.investimentosDetalhados : []).filter((i) => parseFloat(i.valor) < 0).reduce((s, i) => s + (parseFloat(i.valor) || 0), 0)).toFixed(0)}`, Icone: PiggyBank, moduloReq: "patrimonio" },
     { label: "Peso atual", valor: `${pesoRecente ?? "—"} kg`, Icone: Scale, moduloReq: "saude" },
   ].filter((c) => modulos[c.moduloReq] && c.extra !== false);
 
