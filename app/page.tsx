@@ -2855,14 +2855,14 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
           {modulos.financas && dadosPizzaGastos.length > 0 && (
             <div className="mt-6">
               <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Gastos por categoria</h2>
-              <Cartao className="h-56">
-                <ResponsiveContainer width="100%" height="100%">
+              <Cartao>
+                <ResponsiveContainer width="100%" height={260}>
                   <PieChart>
-                    <Pie data={dadosPizzaGastos} dataKey="valor" nameKey="nome" cx="50%" cy="50%" outerRadius={70} label={{ fontSize: 11, fill: corTexto }}>
+                    <Pie data={dadosPizzaGastos} dataKey="valor" nameKey="nome" cx="50%" cy="45%" outerRadius={65}>
                       {dadosPizzaGastos.map((_, i) => <Cell key={i} fill={CORES_GRAFICO[i % CORES_GRAFICO.length]} />)}
                     </Pie>
                     <Tooltip formatter={(v) => `R$ ${v}`} />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Legend wrapperStyle={{ fontSize: 11, lineHeight: "18px" }} />
                   </PieChart>
                 </ResponsiveContainer>
               </Cartao>
@@ -2872,14 +2872,14 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
           {modulos.saude && dadosPizza.length > 0 && (
             <div className="mt-6">
               <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Atividades mais praticadas</h2>
-              <Cartao className="h-56">
-                <ResponsiveContainer width="100%" height="100%">
+              <Cartao>
+                <ResponsiveContainer width="100%" height={260}>
                   <PieChart>
-                    <Pie data={dadosPizza} dataKey="valor" nameKey="nome" cx="50%" cy="50%" outerRadius={70} label={{ fontSize: 11, fill: corTexto }}>
+                    <Pie data={dadosPizza} dataKey="valor" nameKey="nome" cx="50%" cy="45%" outerRadius={65}>
                       {dadosPizza.map((_, i) => <Cell key={i} fill={CORES_GRAFICO[i % CORES_GRAFICO.length]} />)}
                     </Pie>
                     <Tooltip />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Legend wrapperStyle={{ fontSize: 11, lineHeight: "18px" }} />
                   </PieChart>
                 </ResponsiveContainer>
               </Cartao>
