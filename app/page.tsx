@@ -1182,7 +1182,7 @@ function PopupNivel({ nivel, recompensa, onFechar }) {
 function PopupResumoMes({ mesIso, dadosPorDia, metas, onFechar }) {
   const registros = Object.entries(dadosPorDia).filter(([iso]) => mesDoIso(iso) === mesIso).map(([, r]) => r);
   const n = registros.length;
-  const investidoTotal = registros.reduce((s, r) => s + (r.investimentos || []).reduce((a, i) => a + i.valor, 0), 0);
+  const investidoTotal = (Array.isArray(metas.investimentosDetalhados) ? metas.investimentosDetalhados : []).filter((i) => mesDoIso(i.data) === mesIso).reduce((s, i) => s + (parseFloat(i.valor) || 0), 0);
   const metaInvest = parseFloat(metas.investimentoMensal) || 0;
   const bateuInvest = metaInvest > 0 ? investidoTotal >= metaInvest : null;
   const diasAtividade = registros.filter((r) => (r.atividadesFisicas || []).length > 0).length;
@@ -2015,7 +2015,7 @@ function TabVida({ registro, atualizarRegistro, perfil, subModulos }) {
 function TabMetas({ dadosPorDia, metas, atualizarMetas, registro, perfil }) {
   const mesAtual = mesDoIso(hojeISO());
   const registrosDoMes = Object.entries(dadosPorDia).filter(([iso]) => mesDoIso(iso) === mesAtual).map(([, r]) => r);
-  const totalInvestidoMes = registrosDoMes.reduce((s, r) => s + (r.investimentos || []).reduce((a, i) => a + i.valor, 0), 0);
+  const totalInvestidoMes = (Array.isArray(metas.investimentosDetalhados) ? metas.investimentosDetalhados : []).filter((i) => mesDoIso(i.data) === mesAtual).reduce((s, i) => s + (parseFloat(i.valor) || 0), 0);
   const metaInvest = parseFloat(metas.investimentoMensal) || 0;
   const progressoInvest = metaInvest > 0 ? Math.round((totalInvestidoMes / metaInvest) * 100) : 0;
   const diasComSonoOk = registrosDoMes.filter((r) => dormiuNaMeta(r.horaDormiu, metas.horaDormirMeta)).length;
@@ -2376,21 +2376,14 @@ function TabPatrimonio({ metas, atualizarMetas, dadosPorDia, subModulos, registr
   function adicionarInvestimentoDetalhado() {
     if (!novoInvestDet.banco || !novoInvestDet.valor) return;
     const valorNum = parseFloat(novoInvestDet.valor);
-    const idComum = Date.now();
     atualizarMetas((m) => ({
       ...m,
-      investimentosDetalhados: [...(Array.isArray(m.investimentosDetalhados) ? m.investimentosDetalhados : []), { id: idComum, data: diaSelecionado, banco: novoInvestDet.banco, tipo: novoInvestDet.tipo, liquidez: novoInvestDet.liquidez, valor: valorNum }],
+      investimentosDetalhados: [...(Array.isArray(m.investimentosDetalhados) ? m.investimentosDetalhados : []), { id: Date.now(), data: diaSelecionado, banco: novoInvestDet.banco, tipo: novoInvestDet.tipo, liquidez: novoInvestDet.liquidez, valor: valorNum }],
     }));
-    if (atualizarDia) {
-      atualizarDia(diaSelecionado, (r) => ({ ...r, investimentos: [...(r.investimentos || []), { id: idComum, valor: valorNum }] }));
-    }
     setNovoInvestDet({ banco: "", tipo: "", liquidez: "", valor: "" });
   }
   function removerInvestimentoDetalhado(item) {
     atualizarMetas((m) => ({ ...m, investimentosDetalhados: (Array.isArray(m.investimentosDetalhados) ? m.investimentosDetalhados : []).filter((i) => i.id !== item.id) }));
-    if (atualizarDia && item.tipo !== "Resgate" && item.data) {
-      atualizarDia(item.data, (r) => ({ ...r, investimentos: (r.investimentos || []).filter((i) => i.id !== item.id) }));
-    }
   }
   function adicionarResgate() {
     if (!novoResgate.valor) return;
@@ -2698,7 +2691,7 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
     const registros = meses[chave] || [];
     const n = registros.length;
     const gastoTotal = registros.reduce((s, r) => s + (r.gastos || []).reduce((a, g) => a + g.valor, 0), 0);
-    const investidoTotal = registros.reduce((s, r) => s + (r.investimentos || []).reduce((a, i) => a + i.valor, 0), 0);
+    const investidoTotal = (Array.isArray(metas.investimentosDetalhados) ? metas.investimentosDetalhados : []).filter((i) => mesDoIso(i.data) === chave).reduce((s, i) => s + (parseFloat(i.valor) || 0), 0);
     const humorMedio = n ? Math.round(registros.reduce((s, r) => s + (r.humorPercent || 0), 0) / n) : 0;
     const fisicaMedia = n ? Math.round(registros.reduce((s, r) => s + (r.saudeFisicaPercent || 0), 0) / n) : 0;
     const minutosTotal = registros.reduce((s, r) => s + minutosDoDia(r), 0);
@@ -2716,7 +2709,7 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
   const primeiroDiaGeral = perfil.dataInicioApp || perfil.dataCadastro || Object.keys(dadosPorDia).sort()[0] || hojeISO();
   const diasCorridosGeral = Math.max(1, contarDiasEntre(primeiroDiaGeral, hojeISO()));
   const gastoMedioDiarioGeral = totalGastoVariavelGeral / diasCorridosGeral;
-  const totalInvestidoGeral = Object.values(dadosPorDia).reduce((s, r) => s + (r.investimentos || []).reduce((a, i) => a + i.valor, 0), 0);
+  const totalInvestidoGeral = (Array.isArray(metas.investimentosDetalhados) ? metas.investimentosDetalhados : []).reduce((s, i) => s + (parseFloat(i.valor) || 0), 0);
   const totalMinutosGeral = Object.values(dadosPorDia).reduce((s, r) => s + minutosDoDia(r), 0);
   const totalCaloriasGeral = Object.values(dadosPorDia).reduce((s, r) => s + caloriasDoDia(r), 0);
   const melhorStreak = calcularMelhorStreak(dadosPorDia, "fumei");
@@ -2899,7 +2892,7 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
               const registros = meses[chave] || [];
               const n = registros.length;
               const gastoTotal = registros.reduce((s, r) => s + (r.gastos || []).reduce((a, g) => a + g.valor, 0), 0);
-              const investidoTotal = registros.reduce((s, r) => s + (r.investimentos || []).reduce((a, i) => a + i.valor, 0), 0);
+              const investidoTotal = (Array.isArray(metas.investimentosDetalhados) ? metas.investimentosDetalhados : []).filter((i) => mesDoIso(i.data) === chave).reduce((s, i) => s + (parseFloat(i.valor) || 0), 0);
               const humorMedio = n ? Math.round(registros.reduce((s, r) => s + (r.humorPercent || 0), 0) / n) : 0;
               const fisicaMedia = n ? Math.round(registros.reduce((s, r) => s + (r.saudeFisicaPercent || 0), 0) / n) : 0;
               const diasSemFumar = registros.filter((r) => r.fumei === false).length;
@@ -2951,7 +2944,7 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
           {datasOrdenadas.map((iso) => {
             const r = dadosPorDia[iso];
             const gastoTotal = (r.gastos || []).reduce((s, g) => s + g.valor, 0);
-            const investidoTotal = (r.investimentos || []).reduce((s, i) => s + i.valor, 0);
+            const investidoTotal = (Array.isArray(metas.investimentosDetalhados) ? metas.investimentosDetalhados : []).filter((i) => i.data === iso).reduce((s, i) => s + (parseFloat(i.valor) || 0), 0);
             const kcalTotal = (r.refeicoes || []).reduce((s, x) => s + x.kcal, 0);
             return (
               <Cartao key={iso} className={`border-l-2 ${escuro ? "border-l-slate-700" : "border-l-slate-300"}`}>
