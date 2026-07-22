@@ -111,6 +111,8 @@ const CATEGORIAS_GASTO = [
   "Pets", "Beleza/Cuidados pessoais", "Manutenção/Casa", "Outro",
 ];
 
+const FORMAS_PAGAMENTO = ["Dinheiro", "Débito", "Crédito", "Pix"];
+
 const METAS_PADRAO = {
   gastoDiario: "",
   investimentoMensal: "",
@@ -1822,7 +1824,7 @@ function TabMental({ registro, atualizarRegistro }) {
 
 function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSelecionado, diaSelecionado, subModulos }) {
   const { escuro } = useTema();
-  const [novoGasto, setNovoGasto] = useState({ desc: "", valor: "", categoria: "", fixo: false, pagamentoDivida: false });
+  const [novoGasto, setNovoGasto] = useState({ desc: "", valor: "", categoria: "", fixo: false, pagamentoDivida: false, formaPagamento: "" });
   const totalGasto = registro.gastos.reduce((s, g) => s + g.valor, 0);
   const totalGastoVariavel = registro.gastos.filter((g) => !g.fixo).reduce((s, g) => s + g.valor, 0);
   const meta = parseFloat(metas.gastoDiario) || 0;
@@ -1831,14 +1833,14 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSe
   function adicionarGasto() {
     if (!novoGasto.desc || !novoGasto.valor) return;
     const valorNum = parseFloat(novoGasto.valor);
-    atualizarRegistro((r) => ({ ...r, gastos: [...r.gastos, { id: Date.now(), desc: novoGasto.desc, valor: valorNum, categoria: novoGasto.categoria, fixo: novoGasto.fixo }] }));
+    atualizarRegistro((r) => ({ ...r, gastos: [...r.gastos, { id: Date.now(), desc: novoGasto.desc, valor: valorNum, categoria: novoGasto.categoria, fixo: novoGasto.fixo, formaPagamento: novoGasto.formaPagamento }] }));
     if (novoGasto.pagamentoDivida) {
       atualizarMetas((m) => ({
         ...m,
         dividasLancamentos: [...(Array.isArray(m.dividasLancamentos) ? m.dividasLancamentos : []), { id: Date.now() + 1, data: diaSelecionado, descricao: `Pagamento: ${novoGasto.desc}`, valor: -valorNum }],
       }));
     }
-    setNovoGasto({ desc: "", valor: "", categoria: novoGasto.categoria, fixo: false, pagamentoDivida: false });
+    setNovoGasto({ desc: "", valor: "", categoria: novoGasto.categoria, fixo: false, pagamentoDivida: false, formaPagamento: novoGasto.formaPagamento });
   }
   function removerGasto(id) { atualizarRegistro((r) => ({ ...r, gastos: r.gastos.filter((g) => g.id !== id) })); }
 
@@ -1885,6 +1887,12 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSe
             </CampoSelect>
           </div>
         </div>
+        <div className="mb-3">
+          <CampoSelect value={novoGasto.formaPagamento} onChange={(e) => setNovoGasto({ ...novoGasto, formaPagamento: e.target.value })}>
+            <option value="">Forma de pagamento (opcional)</option>
+            {FORMAS_PAGAMENTO.map((f) => <option key={f} value={f}>{f}</option>)}
+          </CampoSelect>
+        </div>
         {subModulos.gastosFixos && (
           <label className={`flex items-center gap-2 text-sm mb-2 ${escuro ? "text-slate-300" : "text-slate-600"}`}>
             <input type="checkbox" checked={novoGasto.fixo} onChange={(e) => setNovoGasto({ ...novoGasto, fixo: e.target.checked })} />
@@ -1907,6 +1915,7 @@ function TabFinancas({ registro, atualizarRegistro, metas, atualizarMetas, mesSe
               <span className={`text-sm ${escuro ? "text-slate-200" : "text-slate-700"}`}>{g.desc}</span>
               <span className={`text-[10px] ml-2 px-1.5 py-0.5 rounded ${escuro ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-500"}`}>{g.categoria || "Outro"}</span>
               {g.fixo && <span className="text-[10px] ml-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">Fixo</span>}
+              {g.formaPagamento && <span className="text-[10px] ml-1 px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-500">{g.formaPagamento}</span>}
             </div>
             <div className="flex items-center gap-3">
               <span className={`text-sm font-medium ${escuro ? "text-white" : "text-slate-900"}`}>R$ {g.valor.toFixed(2).replace(".", ",")}</span>
@@ -2734,6 +2743,15 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
   }
   const dadosPizzaGastos = Object.entries(gastosPorCategoria).map(([nome, valor]) => ({ nome, valor: Math.round(valor) }));
 
+  const gastosPorFormaPagamento = {};
+  for (const r of Object.values(dadosPorDia)) {
+    for (const g of r.gastos || []) {
+      const forma = g.formaPagamento || "Não informado";
+      gastosPorFormaPagamento[forma] = (gastosPorFormaPagamento[forma] || 0) + g.valor;
+    }
+  }
+  const dadosPizzaFormaPagamento = Object.entries(gastosPorFormaPagamento).map(([nome, valor]) => ({ nome, valor: Math.round(valor) }));
+
   const corGrade = escuro ? "#1e293b" : "#f1f5f9";
   const corTexto = escuro ? "#64748b" : "#94a3b8";
 
@@ -2860,6 +2878,23 @@ function TabRelatorios({ dadosPorDia, metas, xpTotal, perfil }) {
                   <PieChart>
                     <Pie data={dadosPizzaGastos} dataKey="valor" nameKey="nome" cx="50%" cy="45%" outerRadius={65}>
                       {dadosPizzaGastos.map((_, i) => <Cell key={i} fill={CORES_GRAFICO[i % CORES_GRAFICO.length]} />)}
+                    </Pie>
+                    <Tooltip formatter={(v) => `R$ ${v}`} />
+                    <Legend wrapperStyle={{ fontSize: 11, lineHeight: "18px" }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </Cartao>
+            </div>
+          )}
+
+          {modulos.financas && dadosPizzaFormaPagamento.length > 0 && (
+            <div className="mt-6">
+              <h2 className={`font-semibold mb-3 text-sm ${escuro ? "text-white" : "text-slate-900"}`}>Gastos por forma de pagamento</h2>
+              <Cartao>
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie data={dadosPizzaFormaPagamento} dataKey="valor" nameKey="nome" cx="50%" cy="45%" outerRadius={65}>
+                      {dadosPizzaFormaPagamento.map((_, i) => <Cell key={i} fill={CORES_GRAFICO[i % CORES_GRAFICO.length]} />)}
                     </Pie>
                     <Tooltip formatter={(v) => `R$ ${v}`} />
                     <Legend wrapperStyle={{ fontSize: 11, lineHeight: "18px" }} />
